@@ -1,0 +1,2576 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+  <title>FonnteCRM Pro — Automasi Rekap Database & WhatsApp Pipeline</title>
+  <meta name="theme-color" content="#0f172a" />
+  <meta name="description" content="Aplikasi CRM Serverless terintegrasi API Fonnte untuk automasi rekap database pelanggan dan follow-up WhatsApp." />
+
+  <!-- PWA Manifest Data URI -->
+  <link rel="manifest" href="data:application/manifest+json;utf8,%7B%22name%22%3A%22FonnteCRM%20Pro%20Automation%22%2C%22short_name%22%3A%22FonnteCRM%22%2C%22start_url%22%3A%22.%22%2C%22display%22%3A%22standalone%22%2C%22background_color%22%3A%22%23f8fafc%22%2C%22theme_color%22%3A%22%230f172a%22%2C%22icons%22%3A%5B%7B%22src%22%3A%22https%3A%2F%2Fplacehold.co%2F192x192%2F0f172a%2Fffffff%3Ftext%3DCRM%22%2C%22sizes%22%3A%22192x192%22%2C%22type%22%3A%22image%2Fpng%22%7D%2C%7B%22src%22%3A%22https%3A%2F%2Fplacehold.co%2F512x512%2F0f172a%2Fffffff%3Ftext%3DCRM%22%2C%22sizes%22%3A%22512x512%22%2C%22type%22%3A%22image%2Fpng%22%7D%5D%7D" />
+
+  <!-- Tailwind CSS CDN -->
+  <script src="https://cdn.tailwindcss.com"></script>
+
+  <!-- Font Awesome Icons -->
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css" />
+
+  <!-- Google Fonts: Inter -->
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet" />
+
+  <style>
+    :root {
+      --font-main: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+    }
+    * {
+      box-sizing: border-box;
+      font-family: var(--font-main);
+    }
+    /* Full-Screen Wrapper untuk menutupi halaman bawaan Blogger tanpa edit XML */
+    #crm-app-root {
+      position: fixed;
+      inset: 0;
+      width: 100vw;
+      height: 100vh;
+      background-color: #f8fafc;
+      color: #0f172a;
+      z-index: 2147483640;
+      overflow: hidden;
+      display: flex;
+      flex-direction: column;
+    }
+    .glass-panel {
+      background: rgba(255, 255, 255, 0.92);
+      backdrop-filter: blur(12px);
+      -webkit-backdrop-filter: blur(12px);
+      border: 1px solid rgba(226, 232, 240, 0.9);
+    }
+    .custom-scroll::-webkit-scrollbar {
+      width: 6px;
+      height: 6px;
+    }
+    .custom-scroll::-webkit-scrollbar-track {
+      background: #f1f5f9;
+    }
+    .custom-scroll::-webkit-scrollbar-thumb {
+      background: #cbd5e1;
+      border-radius: 9999px;
+    }
+    .custom-scroll::-webkit-scrollbar-thumb:hover {
+      background: #94a3b8;
+    }
+    /* Responsive Navigation Rules */
+    @media (min-width: 1024px) {
+      #desktop-sidebar {
+        display: flex !important;
+      }
+      #mobile-bottom-nav {
+        display: none !important;
+      }
+      #main-workspace {
+        padding-bottom: 1.5rem;
+      }
+    }
+    @media (max-width: 1023px) {
+      #desktop-sidebar {
+        display: none !important;
+      }
+      #mobile-bottom-nav {
+        display: flex !important;
+      }
+      #main-workspace {
+        padding-bottom: 5.5rem;
+      }
+    }
+    @keyframes fadeIn {
+      from { opacity: 0; transform: translateY(6px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
+    .animate-fade-in {
+      animation: fadeIn 0.22s ease-out forwards;
+    }
+  </style>
+</head>
+<body class="m-0 p-0 overflow-hidden select-none">
+
+<div id="crm-app-root">
+  <!-- Banner Mode Preview (Hanya dirender jika IS_PREVIEW === true) -->
+  <div id="preview-mode-banner" class="hidden bg-amber-500 text-slate-950 px-4 py-1.5 text-xs font-semibold flex flex-wrap items-center justify-between gap-2 shadow-sm z-50">
+    <div class="flex items-center gap-2">
+      <span class="bg-slate-950 text-amber-400 px-2 py-0.5 rounded font-bold uppercase tracking-wider text-[10px]">MODE PREVIEW (IN-MEMORY)</span>
+      <span>Aplikasi berjalan dengan data simulasi sementara. Ubah <code class="bg-amber-600/20 px-1 rounded">IS_PREVIEW = false</code> saat deploy ke produksi.</span>
+    </div>
+    <div class="flex items-center gap-2">
+      <span class="text-[11px] bg-white/80 px-2 py-0.5 rounded font-medium">Admin: <b>admin@crm.com</b> / <b>admin123</b></span>
+      <span class="text-[11px] bg-white/80 px-2 py-0.5 rounded font-medium">CS: <b>cs_nadia</b> / <b>123456</b></span>
+    </div>
+  </div>
+
+  <!-- Toast Container -->
+  <div id="toast-container" class="fixed top-4 right-4 z-[2147483647] flex flex-col gap-2 max-w-sm w-full pointer-events-none px-3 sm:px-0"></div>
+
+  <!-- HALAMAN LOGIN HYBRID -->
+  <div id="auth-screen" class="flex-1 flex items-center justify-center p-4 overflow-y-auto custom-scroll bg-gradient-to-br from-slate-100 via-white to-emerald-50/40">
+    <div class="w-full max-w-md glass-panel rounded-2xl shadow-xl p-6 sm:p-8 animate-fade-in">
+      <!-- Brand Header -->
+      <div class="flex items-center gap-3.5 mb-6">
+        <div class="w-12 h-12 rounded-2xl bg-slate-900 text-emerald-400 flex items-center justify-center text-xl shadow-md">
+          <i class="fa-brands fa-whatsapp"></i>
+        </div>
+        <div>
+          <h1 class="text-xl font-extrabold text-slate-900 tracking-tight">FonnteCRM <span class="text-emerald-600">Pro</span></h1>
+          <p class="text-xs text-slate-500 font-medium">Automasi Rekap Database & Pipeline WhatsApp</p>
+        </div>
+      </div>
+
+      <!-- Switch Role Tabs -->
+      <div class="grid grid-cols-2 gap-1.5 p-1 bg-slate-100 rounded-xl mb-6 border border-slate-200">
+        <button id="tab-login-admin" type="button" class="py-2.5 px-3 rounded-lg text-xs font-bold transition-all bg-white text-slate-900 shadow-sm flex items-center justify-center gap-2">
+          <i class="fa-solid fa-user-shield text-emerald-600"></i> Admin / Manager
+        </button>
+        <button id="tab-login-cs" type="button" class="py-2.5 px-3 rounded-lg text-xs font-bold transition-all text-slate-500 hover:text-slate-800 flex items-center justify-center gap-2">
+          <i class="fa-solid fa-headset"></i> Tim CS / Sales
+        </button>
+      </div>
+
+      <!-- Form Login Admin (Firebase Auth) -->
+      <form id="form-login-admin" class="space-y-4">
+        <div>
+          <label class="block text-xs font-semibold text-slate-700 mb-1">Email Admin (Firebase Auth)</label>
+          <div class="relative">
+            <i class="fa-regular fa-envelope absolute left-3.5 top-3 text-slate-400 text-sm"></i>
+            <input id="admin-email" type="email" required placeholder="nama@perusahaan.com" class="w-full pl-10 pr-4 py-2.5 text-sm bg-white border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-slate-900 focus:border-transparent" />
+          </div>
+        </div>
+        <div>
+          <label class="block text-xs font-semibold text-slate-700 mb-1">Password</label>
+          <div class="relative">
+            <i class="fa-solid fa-lock absolute left-3.5 top-3 text-slate-400 text-sm"></i>
+            <input id="admin-password" type="password" required placeholder="••••••••" class="w-full pl-10 pr-4 py-2.5 text-sm bg-white border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-slate-900 focus:border-transparent" />
+          </div>
+        </div>
+        <button id="btn-submit-admin" type="submit" class="w-full py-3 bg-slate-900 hover:bg-slate-800 text-white font-semibold text-sm rounded-xl shadow-md transition-all flex items-center justify-center gap-2">
+          <span>Masuk Dashboard Admin</span>
+          <i class="fa-solid fa-arrow-right text-xs"></i>
+        </button>
+      </form>
+
+      <!-- Form Login CS / Sales (Validasi Koleksi Firestore) -->
+      <form id="form-login-cs" class="space-y-4 hidden">
+        <div>
+          <label class="block text-xs font-semibold text-slate-700 mb-1">Username CS / ID Agen</label>
+          <div class="relative">
+            <i class="fa-regular fa-user absolute left-3.5 top-3 text-slate-400 text-sm"></i>
+            <input id="cs-username" type="text" required placeholder="contoh: cs_nadia" class="w-full pl-10 pr-4 py-2.5 text-sm bg-white border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-emerald-600 focus:border-transparent" />
+          </div>
+        </div>
+        <div>
+          <label class="block text-xs font-semibold text-slate-700 mb-1">Password CS</label>
+          <div class="relative">
+            <i class="fa-solid fa-key absolute left-3.5 top-3 text-slate-400 text-sm"></i>
+            <input id="cs-password" type="password" required placeholder="••••••••" class="w-full pl-10 pr-4 py-2.5 text-sm bg-white border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-emerald-600 focus:border-transparent" />
+          </div>
+        </div>
+        <button id="btn-submit-cs" type="submit" class="w-full py-3 bg-emerald-600 hover:bg-emerald-700 text-white font-semibold text-sm rounded-xl shadow-md transition-all flex items-center justify-center gap-2">
+          <span>Masuk Workspace CS</span>
+          <i class="fa-solid fa-bolt text-xs"></i>
+        </button>
+      </form>
+
+      <!-- Kotak Bantuan Demo (Hanya tampil saat IS_PREVIEW === true) -->
+      <div id="preview-login-helper" class="hidden mt-6 pt-5 border-t border-slate-200/80">
+        <p class="text-[11px] font-semibold text-slate-500 uppercase tracking-wider mb-2.5">Akses Cepat Simulasi (Mode Preview):</p>
+        <div class="grid grid-cols-2 gap-2">
+          <button type="button" id="btn-quick-admin" class="py-2 px-3 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-800 text-xs font-medium text-left transition flex items-center justify-between">
+            <span><i class="fa-solid fa-crown text-amber-500 mr-1.5"></i>Demo Admin</span>
+            <i class="fa-solid fa-chevron-right text-[10px] text-slate-400"></i>
+          </button>
+          <button type="button" id="btn-quick-cs" class="py-2 px-3 rounded-lg bg-emerald-50 hover:bg-emerald-100 text-emerald-900 text-xs font-medium text-left transition flex items-center justify-between">
+            <span><i class="fa-solid fa-headset text-emerald-600 mr-1.5"></i>Demo CS Nadia</span>
+            <i class="fa-solid fa-chevron-right text-[10px] text-emerald-500"></i>
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- SHELL APLIKASI UTAMA -->
+  <div id="app-shell" class="hidden flex-1 flex overflow-hidden">
+    <!-- DESKTOP LEFT SIDEBAR -->
+    <aside id="desktop-sidebar" class="w-64 bg-white border-r border-slate-200 flex-col justify-between shrink-0 select-none">
+      <div>
+        <!-- Brand Logo -->
+        <div class="h-16 px-5 flex items-center justify-between border-b border-slate-100">
+          <div class="flex items-center gap-2.5">
+            <div class="w-9 h-9 rounded-xl bg-slate-900 text-emerald-400 flex items-center justify-center text-base shadow-sm">
+              <i class="fa-brands fa-whatsapp"></i>
+            </div>
+            <div>
+              <span class="font-extrabold text-sm text-slate-900 tracking-tight block leading-none">FonnteCRM</span>
+              <span id="sidebar-role-badge" class="text-[10px] font-semibold text-emerald-600 uppercase tracking-wider">ADMIN</span>
+            </div>
+          </div>
+          <span id="fonnte-status-dot" class="w-2.5 h-2.5 rounded-full bg-slate-300" title="Status Token Fonnte"></span>
+        </div>
+
+        <!-- Navigation Menu List -->
+        <nav id="desktop-nav-links" class="p-3 space-y-1">
+          <!-- Di-render secara dinamis sesuai hak akses Role -->
+        </nav>
+      </div>
+
+      <!-- User Profile & Logout Footer -->
+      <div class="p-3 border-t border-slate-100 bg-slate-50/60">
+        <div class="flex items-center justify-between gap-2 px-2 py-1.5">
+          <div class="min-w-0">
+            <p id="sidebar-user-name" class="text-xs font-bold text-slate-900 truncate">Administrator</p>
+            <p id="sidebar-user-sub" class="text-[11px] text-slate-500 truncate">admin@crm.com</p>
+          </div>
+          <button id="btn-logout-desktop" type="button" title="Keluar" class="p-2 rounded-lg text-slate-500 hover:text-rose-600 hover:bg-rose-50 transition">
+            <i class="fa-solid fa-right-from-bracket text-sm"></i>
+          </button>
+        </div>
+      </div>
+    </aside>
+
+    <!-- AREA KONTEN UTAMA -->
+    <div class="flex-1 flex flex-col min-w-0 bg-slate-50/70 overflow-hidden">
+      <!-- Top Header Bar -->
+      <header class="h-16 bg-white/90 backdrop-blur border-b border-slate-200 px-4 sm:px-6 flex items-center justify-between shrink-0">
+        <div class="flex items-center gap-3 min-w-0">
+          <h2 id="topbar-title" class="text-base sm:text-lg font-bold text-slate-900 truncate">Dashboard & Analitik Rekap</h2>
+        </div>
+
+        <div class="flex items-center gap-2 sm:gap-3">
+          <!-- Indikator Koneksi Fonnte -->
+          <div id="topbar-fonnte-pill" class="hidden sm:flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold bg-slate-100 text-slate-600 border border-slate-200">
+            <span class="w-2 h-2 rounded-full bg-slate-400"></span>
+            <span>Fonnte: Belum Diatur</span>
+          </div>
+
+          <!-- Tombol Cepat Automasi Rekap Bulk -->
+          <button id="btn-open-smart-parser" type="button" class="px-3 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-semibold shadow-sm transition flex items-center gap-1.5">
+            <i class="fa-solid fa-wand-magic-sparkles"></i>
+            <span class="hidden sm:inline">Automasi Rekap WA/CSV</span>
+            <span class="sm:hidden">Rekap Cepat</span>
+          </button>
+
+          <!-- Tombol Logout Mobile -->
+          <button id="btn-logout-mobile" type="button" class="lg:hidden p-2 rounded-xl border border-slate-200 text-slate-600 hover:text-rose-600 hover:bg-rose-50">
+            <i class="fa-solid fa-right-from-bracket text-sm"></i>
+          </button>
+        </div>
+      </header>
+
+      <!-- Workspace Dinamis -->
+      <main id="main-workspace" class="flex-1 overflow-y-auto custom-scroll p-4 sm:p-6 space-y-6">
+        <!-- VIEW 1: DASHBOARD & ANALITIK REKAP -->
+        <section id="view-dashboard" class="space-y-6 animate-fade-in">
+          <!-- KPI Metric Cards -->
+          <div class="grid grid-cols-2 lg:grid-cols-5 gap-3 sm:gap-4">
+            <div class="bg-white p-4 rounded-2xl border border-slate-200/90 shadow-sm">
+              <div class="flex items-center justify-between text-slate-400 text-xs font-semibold mb-1">
+                <span>TOTAL DATABASE</span>
+                <i class="fa-solid fa-users text-slate-700"></i>
+              </div>
+              <p id="stat-total-leads" class="text-2xl font-extrabold text-slate-900">0</p>
+              <p class="text-[11px] text-slate-500 mt-1">Leads terekap di CRM</p>
+            </div>
+
+            <div class="bg-white p-4 rounded-2xl border border-slate-200/90 shadow-sm">
+              <div class="flex items-center justify-between text-sky-600 text-xs font-semibold mb-1">
+                <span>LEADS BARU / COLD</span>
+                <i class="fa-solid fa-snowflake"></i>
+              </div>
+              <p id="stat-cold-leads" class="text-2xl font-extrabold text-slate-900">0</p>
+              <p class="text-[11px] text-slate-500 mt-1">Menunggu edukasi awal</p>
+            </div>
+
+            <div class="bg-white p-4 rounded-2xl border border-slate-200/90 shadow-sm">
+              <div class="flex items-center justify-between text-amber-600 text-xs font-semibold mb-1">
+                <span>PROSPEK WARM / HOT</span>
+                <i class="fa-solid fa-fire"></i>
+              </div>
+              <p id="stat-warm-hot" class="text-2xl font-extrabold text-slate-900">0</p>
+              <p class="text-[11px] text-slate-500 mt-1">Prioritas follow-up WA</p>
+            </div>
+
+            <div class="bg-white p-4 rounded-2xl border border-slate-200/90 shadow-sm">
+              <div class="flex items-center justify-between text-emerald-600 text-xs font-semibold mb-1">
+                <span>CLOSING / DEAL</span>
+                <i class="fa-solid fa-circle-check"></i>
+              </div>
+              <p id="stat-closing-leads" class="text-2xl font-extrabold text-emerald-600">0</p>
+              <p id="stat-conversion-rate" class="text-[11px] text-slate-500 mt-1">Rasio Konversi: 0%</p>
+            </div>
+
+            <div class="col-span-2 lg:col-span-1 bg-slate-900 text-white p-4 rounded-2xl shadow-sm">
+              <div class="flex items-center justify-between text-emerald-400 text-xs font-semibold mb-1">
+                <span>TERKIRIM FONNTE</span>
+                <i class="fa-brands fa-whatsapp"></i>
+              </div>
+              <p id="stat-wa-sent" class="text-2xl font-extrabold">0</p>
+              <p class="text-[11px] text-slate-400 mt-1">Log automasi & follow-up</p>
+            </div>
+          </div>
+
+          <!-- Distribusi Pipeline & Performa Tim CS -->
+          <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+            <!-- Grafik Bar Status Pipeline -->
+            <div class="lg:col-span-2 bg-white rounded-2xl border border-slate-200 p-5 shadow-sm">
+              <div class="flex items-center justify-between mb-4">
+                <div>
+                  <h3 class="text-sm font-bold text-slate-900">Rekapitulasi Pipeline Database</h3>
+                  <p class="text-xs text-slate-500">Proporsi status leads secara real-time</p>
+                </div>
+                <button type="button" id="btn-export-csv-dash" class="px-3 py-1.5 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-semibold transition flex items-center gap-1.5">
+                  <i class="fa-solid fa-file-csv text-emerald-600"></i> Unduh Rekap CSV
+                </button>
+              </div>
+              <div id="pipeline-bars-container" class="space-y-3">
+                <!-- Di-render lewat JS -->
+              </div>
+            </div>
+
+            <!-- Rekap Performa CS & Sumber Leads -->
+            <div class="bg-white rounded-2xl border border-slate-200 p-5 shadow-sm flex flex-col justify-between">
+              <div>
+                <h3 class="text-sm font-bold text-slate-900 mb-1">Distribusi Penugasan CS</h3>
+                <p class="text-xs text-slate-500 mb-4">Rekap beban leads & closing per agen</p>
+                <div id="cs-performance-list" class="space-y-2.5 max-h-60 overflow-y-auto custom-scroll pr-1">
+                  <!-- Di-render lewat JS -->
+                </div>
+              </div>
+              <div class="mt-4 pt-3 border-t border-slate-100 flex items-center justify-between text-xs text-slate-500">
+                <span>Sumber Terbanyak:</span>
+                <span id="stat-top-source" class="font-bold text-slate-800">-</span>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <!-- VIEW 2: DATA LEADS & AUTOMASI REKAP -->
+        <section id="view-leads" class="hidden space-y-4 animate-fade-in">
+          <!-- Bar Kontrol, Filter & Tombol Aksi -->
+          <div class="bg-white p-4 rounded-2xl border border-slate-200 shadow-sm space-y-3">
+            <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+              <div class="flex-1 relative">
+                <i class="fa-solid fa-magnifying-glass absolute left-3.5 top-3 text-slate-400 text-xs"></i>
+                <input id="filter-search-leads" type="text" placeholder="Cari nama pelanggan, nomor WA (628...), atau catatan..." class="w-full pl-9 pr-4 py-2 text-xs sm:text-sm bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-slate-900 focus:bg-white" />
+              </div>
+              <div class="flex flex-wrap items-center gap-2">
+                <button type="button" id="btn-add-single-lead" class="px-3.5 py-2 rounded-xl bg-slate-900 hover:bg-slate-800 text-white text-xs font-semibold transition flex items-center gap-1.5">
+                  <i class="fa-solid fa-plus"></i> Tambah Lead
+                </button>
+                <button type="button" id="btn-open-parser-from-leads" class="px-3.5 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-semibold transition flex items-center gap-1.5">
+                  <i class="fa-solid fa-bolt"></i> Bulk Rekap Otomatis
+                </button>
+                <button type="button" id="btn-export-csv-leads" class="px-3 py-2 rounded-xl border border-slate-200 hover:bg-slate-100 text-slate-700 text-xs font-semibold transition flex items-center gap-1.5">
+                  <i class="fa-solid fa-download"></i> CSV
+                </button>
+              </div>
+            </div>
+
+            <!-- Baris Filter Dropdown -->
+            <div class="grid grid-cols-2 sm:grid-cols-4 gap-2 pt-1">
+              <select id="filter-status-leads" class="px-3 py-2 text-xs bg-slate-50 border border-slate-200 rounded-xl text-slate-700 font-medium focus:outline-none">
+                <option value="ALL">Semua Status Pipeline</option>
+                <option value="Baru">Baru Masuk</option>
+                <option value="Cold">Cold (Edukasi)</option>
+                <option value="Warm">Warm (Tertarik)</option>
+                <option value="Hot">Hot (Siap Beli)</option>
+                <option value="Closing">Closing (Deal)</option>
+                <option value="Lost">Lost / Batal</option>
+              </select>
+
+              <select id="filter-source-leads" class="px-3 py-2 text-xs bg-slate-50 border border-slate-200 rounded-xl text-slate-700 font-medium focus:outline-none">
+                <option value="ALL">Semua Sumber Leads</option>
+                <option value="Meta Ads">Meta Ads (FB/IG)</option>
+                <option value="TikTok Ads">TikTok Ads</option>
+                <option value="Google / Website">Google / Website</option>
+                <option value="WhatsApp Masuk">WhatsApp Masuk</option>
+                <option value="Referral / Event">Referral / Event</option>
+              </select>
+
+              <select id="filter-cs-leads" class="px-3 py-2 text-xs bg-slate-50 border border-slate-200 rounded-xl text-slate-700 font-medium focus:outline-none">
+                <option value="ALL">Semua Agen CS</option>
+              </select>
+
+              <div class="flex items-center justify-end px-2 text-xs text-slate-500 font-medium">
+                Menampilkan: <span id="leads-filtered-count" class="font-bold text-slate-900 ml-1">0</span> data
+              </div>
+            </div>
+          </div>
+
+          <!-- Tabel Rekap Database Leads -->
+          <div class="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
+            <div class="overflow-x-auto custom-scroll">
+              <table class="w-full text-left border-collapse">
+                <thead>
+                  <tr class="bg-slate-50/80 border-b border-slate-200 text-[11px] font-bold text-slate-500 uppercase tracking-wider">
+                    <th class="py-3.5 px-4">Pelanggan & WhatsApp</th>
+                    <th class="py-3.5 px-3">Sumber</th>
+                    <th class="py-3.5 px-3">Status Pipeline</th>
+                    <th class="py-3.5 px-3">Agen CS</th>
+                    <th class="py-3.5 px-3">Catatan & Histori</th>
+                    <th class="py-3.5 px-4 text-right">Follow-Up Fonnte & Aksi</th>
+                  </tr>
+                </thead>
+                <tbody id="leads-table-body" class="divide-y divide-slate-100 text-xs sm:text-sm">
+                  <!-- Di-render secara dinamis -->
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </section>
+
+        <!-- VIEW 3: BROADCAST & AUTOMASI PESAN FONNTE -->
+        <section id="view-broadcast" class="hidden space-y-6 animate-fade-in">
+          <div class="grid grid-cols-1 lg:grid-cols-12 gap-6">
+            <!-- Kolom Kiri: Panel Eksekusi Broadcast Segmen -->
+            <div class="lg:col-span-7 bg-white rounded-2xl border border-slate-200 p-5 shadow-sm space-y-4">
+              <div class="flex items-center justify-between border-b border-slate-100 pb-3">
+                <div>
+                  <h3 class="text-sm font-bold text-slate-900 flex items-center gap-2">
+                    <i class="fa-solid fa-paper-plane text-emerald-600"></i> Broadcast Terarah via API Fonnte
+                  </h3>
+                  <p class="text-xs text-slate-500">Kirim pesan personalisasi otomatis ke segmen database CRM</p>
+                </div>
+                <span id="broadcast-target-badge" class="px-2.5 py-1 rounded-full text-xs font-bold bg-emerald-50 text-emerald-700 border border-emerald-200">0 Target</span>
+              </div>
+
+              <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div>
+                  <label class="block text-xs font-semibold text-slate-700 mb-1">Filter Status Target</label>
+                  <select id="bc-filter-status" class="w-full px-3 py-2 text-xs bg-slate-50 border border-slate-200 rounded-xl font-medium">
+                    <option value="ALL">Semua Status Leads</option>
+                    <option value="Baru">Hanya Status: Baru</option>
+                    <option value="Cold">Hanya Status: Cold</option>
+                    <option value="Warm" selected>Hanya Status: Warm</option>
+                    <option value="Hot">Hanya Status: Hot</option>
+                    <option value="Closing">Hanya Status: Closing</option>
+                  </select>
+                </div>
+                <div>
+                  <label class="block text-xs font-semibold text-slate-700 mb-1">Pilih Template Cepat</label>
+                  <select id="bc-template-select" class="w-full px-3 py-2 text-xs bg-slate-50 border border-slate-200 rounded-xl font-medium">
+                    <option value="">-- Tulis Manual / Pilih Template --</option>
+                  </select>
+                </div>
+              </div>
+
+              <div>
+                <div class="flex items-center justify-between mb-1">
+                  <label class="text-xs font-semibold text-slate-700">Isi Pesan WhatsApp</label>
+                  <span class="text-[11px] text-slate-400">Variabel otomatis: <code class="bg-slate-100 px-1 rounded text-slate-700">{nama}</code> <code class="bg-slate-100 px-1 rounded text-slate-700">{sumber}</code> <code class="bg-slate-100 px-1 rounded text-slate-700">{status}</code></span>
+                </div>
+                <textarea id="bc-message-body" rows="5" placeholder="Halo Kak {nama}, terima kasih sudah menghubungi kami melalui {sumber}..." class="w-full p-3 text-xs sm:text-sm bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-emerald-600 focus:bg-white"></textarea>
+              </div>
+
+              <div class="grid grid-cols-1 sm:grid-cols-2 gap-3 items-center bg-slate-50 p-3 rounded-xl border border-slate-200/80">
+                <div>
+                  <label class="block text-xs font-semibold text-slate-700">Jeda Antar Pesan (Anti-Banned)</label>
+                  <p class="text-[11px] text-slate-500">Rekomendasi aman: 2 - 5 detik</p>
+                </div>
+                <select id="bc-delay-sec" class="px-3 py-2 text-xs bg-white border border-slate-200 rounded-xl font-semibold text-slate-800">
+                  <option value="1500">1.5 Detik (Cepat)</option>
+                  <option value="3000" selected>3 Detik (Standar Aman)</option>
+                  <option value="5000">5 Detik (Ekstra Aman)</option>
+                </select>
+              </div>
+
+              <!-- Progress Bar Pengiriman -->
+              <div id="bc-progress-wrap" class="hidden space-y-1.5 pt-2">
+                <div class="flex justify-between text-xs font-semibold text-slate-700">
+                  <span id="bc-progress-status">Mengirim pesan...</span>
+                  <span id="bc-progress-text">0 / 0</span>
+                </div>
+                <div class="w-full h-2.5 bg-slate-100 rounded-full overflow-hidden">
+                  <div id="bc-progress-bar" class="h-full bg-emerald-600 transition-all duration-300" style="width: 0%"></div>
+                </div>
+              </div>
+
+              <div class="flex items-center justify-end gap-2 pt-2">
+                <button type="button" id="btn-start-broadcast" class="w-full sm:w-auto px-5 py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-xs sm:text-sm font-bold shadow-sm transition flex items-center justify-center gap-2">
+                  <i class="fa-brands fa-whatsapp text-base"></i> Mulai Kirim Broadcast Fonnte
+                </button>
+              </div>
+            </div>
+
+            <!-- Kolom Kanan: Manajemen Template Pesan CRM -->
+            <div class="lg:col-span-5 bg-white rounded-2xl border border-slate-200 p-5 shadow-sm flex flex-col justify-between space-y-4">
+              <div>
+                <div class="flex items-center justify-between border-b border-slate-100 pb-3 mb-3">
+                  <div>
+                    <h3 class="text-sm font-bold text-slate-900">Template Pesan Follow-Up</h3>
+                    <p class="text-xs text-slate-500">Digunakan untuk 1-Click WA & Broadcast</p>
+                  </div>
+                  <button type="button" id="btn-new-template" class="px-2.5 py-1.5 rounded-lg bg-slate-900 text-white text-xs font-semibold hover:bg-slate-800 transition">
+                    <i class="fa-solid fa-plus mr-1"></i> Baru
+                  </button>
+                </div>
+
+                <!-- Daftar Template -->
+                <div id="templates-list-container" class="space-y-2.5 max-h-[340px] overflow-y-auto custom-scroll pr-1">
+                  <!-- Di-render lewat JS -->
+                </div>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <!-- VIEW 4: MANAJEMEN TIM CS (KHUSUS ADMIN) -->
+        <section id="view-team" class="hidden space-y-6 animate-fade-in">
+          <div class="grid grid-cols-1 lg:grid-cols-12 gap-6">
+            <!-- Form Tambah / Edit Akun CS -->
+            <div class="lg:col-span-4 bg-white rounded-2xl border border-slate-200 p-5 shadow-sm h-fit">
+              <h3 id="team-form-title" class="text-sm font-bold text-slate-900 mb-1">Tambah Akun CS / Sales</h3>
+              <p class="text-xs text-slate-500 mb-4">Akun disimpan di koleksi <code class="bg-slate-100 px-1 rounded">crm_users</code> untuk login Hybrid</p>
+
+              <form id="form-manage-cs" class="space-y-3.5">
+                <input type="hidden" id="cs-edit-id" value="" />
+                <div>
+                  <label class="block text-xs font-semibold text-slate-700 mb-1">Nama Lengkap Agen CS</label>
+                  <input id="cs-input-name" type="text" required placeholder="Contoh: Nadia Putri" class="w-full px-3.5 py-2 text-xs sm:text-sm bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:bg-white focus:ring-2 focus:ring-slate-900" />
+                </div>
+                <div>
+                  <label class="block text-xs font-semibold text-slate-700 mb-1">Username Login (Tanpa Spasi)</label>
+                  <input id="cs-input-username" type="text" required placeholder="Contoh: cs_nadia" class="w-full px-3.5 py-2 text-xs sm:text-sm bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:bg-white focus:ring-2 focus:ring-slate-900" />
+                </div>
+                <div>
+                  <label class="block text-xs font-semibold text-slate-700 mb-1">Password Login CS</label>
+                  <input id="cs-input-password" type="text" required placeholder="Minimal 5 karakter" class="w-full px-3.5 py-2 text-xs sm:text-sm bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:bg-white focus:ring-2 focus:ring-slate-900" />
+                </div>
+                <div>
+                  <label class="block text-xs font-semibold text-slate-700 mb-1">Nomor WhatsApp CS</label>
+                  <input id="cs-input-phone" type="text" required placeholder="628123456789" class="w-full px-3.5 py-2 text-xs sm:text-sm bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:bg-white focus:ring-2 focus:ring-slate-900" />
+                </div>
+                <div class="flex items-center gap-2 pt-1">
+                  <input id="cs-input-active" type="checkbox" checked class="w-4 h-4 rounded text-emerald-600 focus:ring-emerald-500" />
+                  <label for="cs-input-active" class="text-xs font-medium text-slate-700">Aktifkan akun & sertakan di Auto-Rotator Leads</label>
+                </div>
+
+                <div class="flex items-center gap-2 pt-2">
+                  <button type="submit" class="flex-1 py-2.5 bg-slate-900 hover:bg-slate-800 text-white text-xs font-bold rounded-xl transition">
+                    Simpan Akun CS
+                  </button>
+                  <button type="button" id="btn-cancel-cs-edit" class="hidden px-3 py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-600 text-xs font-semibold rounded-xl">
+                    Batal
+                  </button>
+                </div>
+              </form>
+            </div>
+
+            <!-- Daftar Tabel Akun CS -->
+            <div class="lg:col-span-8 bg-white rounded-2xl border border-slate-200 p-5 shadow-sm">
+              <div class="flex items-center justify-between mb-4">
+                <div>
+                  <h3 class="text-sm font-bold text-slate-900">Daftar Tim CS & Rotator Distribusi</h3>
+                  <p class="text-xs text-slate-500">Leads dari Automasi Rekap dapat dibagikan otomatis secara merata ke CS aktif</p>
+                </div>
+              </div>
+
+              <div class="overflow-x-auto custom-scroll">
+                <table class="w-full text-left border-collapse">
+                  <thead>
+                    <tr class="bg-slate-50 border-b border-slate-200 text-[11px] font-bold text-slate-500 uppercase">
+                      <th class="py-3 px-3">Nama Agen</th>
+                      <th class="py-3 px-3">Username & Password</th>
+                      <th class="py-3 px-3">Status Rotator</th>
+                      <th class="py-3 px-3">Total Leads</th>
+                      <th class="py-3 px-3 text-right">Aksi</th>
+                    </tr>
+                  </thead>
+                  <tbody id="team-table-body" class="divide-y divide-slate-100 text-xs sm:text-sm">
+                    <!-- Di-render lewat JS -->
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <!-- VIEW 5: PENGATURAN INTEGRASI FONNTE & LOG API (KHUSUS ADMIN) -->
+        <section id="view-settings" class="hidden space-y-6 animate-fade-in">
+          <div class="grid grid-cols-1 lg:grid-cols-12 gap-6">
+            <!-- Panel Konfigurasi API Fonnte -->
+            <div class="lg:col-span-5 bg-white rounded-2xl border border-slate-200 p-5 shadow-sm space-y-4 h-fit">
+              <div class="flex items-center gap-3 border-b border-slate-100 pb-3">
+                <div class="w-10 h-10 rounded-xl bg-emerald-50 text-emerald-600 flex items-center justify-center text-lg">
+                  <i class="fa-solid fa-plug-circle-check"></i>
+                </div>
+                <div>
+                  <h3 class="text-sm font-bold text-slate-900">Konfigurasi Gateway Fonnte</h3>
+                  <p class="text-xs text-slate-500">Koneksi langsung ke endpoint <code class="bg-slate-100 px-1 rounded">api.fonnte.com</code></p>
+                </div>
+              </div>
+
+              <form id="form-fonnte-settings" class="space-y-4">
+                <div>
+                  <label class="block text-xs font-semibold text-slate-700 mb-1">Device Token API Fonnte</label>
+                  <div class="relative">
+                    <input id="setting-fonnte-token" type="password" placeholder="Masukkan Token Device dari dashboard Fonnte..." class="w-full pl-3.5 pr-10 py-2.5 text-xs sm:text-sm bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:bg-white focus:ring-2 focus:ring-emerald-600" />
+                    <button type="button" id="btn-toggle-token-vis" class="absolute right-3 top-2.5 text-slate-400 hover:text-slate-700">
+                      <i class="fa-regular fa-eye text-sm"></i>
+                    </button>
+                  </div>
+                  <p class="text-[11px] text-slate-400 mt-1">Dapatkan token di <a href="https://md.fonnte.com" target="_blank" rel="noopener" class="text-emerald-600 underline">md.fonnte.com</a> &rarr; menu Device.</p>
+                </div>
+
+                <div class="p-3.5 rounded-xl bg-slate-50 border border-slate-200/80 space-y-2.5">
+                  <div class="flex items-center justify-between">
+                    <label for="setting-auto-welcome" class="text-xs font-bold text-slate-800">Auto-Welcome saat Rekap Database Baru</label>
+                    <input id="setting-auto-welcome" type="checkbox" class="w-4 h-4 rounded text-emerald-600" />
+                  </div>
+                  <p class="text-[11px] text-slate-500">Jika aktif, setiap leads baru yang ditambahkan dapat langsung dikirimi pesan sapaan otomatis via Fonnte.</p>
+                  <div>
+                    <label class="block text-[11px] font-semibold text-slate-600 mb-1">Template Sapaan Default:</label>
+                    <select id="setting-welcome-template" class="w-full px-3 py-1.5 text-xs bg-white border border-slate-200 rounded-lg">
+                      <option value="">-- Pilih Template Sapaan --</option>
+                    </select>
+                  </div>
+                </div>
+
+                <div class="flex flex-wrap items-center gap-2 pt-1">
+                  <button type="submit" class="flex-1 py-2.5 px-4 bg-slate-900 hover:bg-slate-800 text-white text-xs font-bold rounded-xl transition">
+                    <i class="fa-solid fa-floppy-disk mr-1.5"></i> Simpan Pengaturan
+                  </button>
+                  <button type="button" id="btn-check-fonnte-device" class="py-2.5 px-4 bg-emerald-50 hover:bg-emerald-100 text-emerald-800 border border-emerald-200 text-xs font-bold rounded-xl transition">
+                    <i class="fa-solid fa-satellite-dish mr-1"></i> Cek Status Device
+                  </button>
+                </div>
+              </form>
+
+              <!-- Hasil Cek Device Fonnte -->
+              <div id="fonnte-device-info-box" class="hidden p-3.5 rounded-xl bg-emerald-50/70 border border-emerald-200 text-xs space-y-1">
+                <!-- Diisi otomatis saat klik Cek Status Device -->
+              </div>
+            </div>
+
+            <!-- Panel Riwayat Log Pengiriman API Fonnte -->
+            <div class="lg:col-span-7 bg-white rounded-2xl border border-slate-200 p-5 shadow-sm flex flex-col justify-between">
+              <div>
+                <div class="flex items-center justify-between border-b border-slate-100 pb-3 mb-3">
+                  <div>
+                    <h3 class="text-sm font-bold text-slate-900">Log Aktivitas & Riwayat Pengiriman Fonnte</h3>
+                    <p class="text-xs text-slate-500">Rekam jejak pengiriman WA otomatis maupun manual oleh CS</p>
+                  </div>
+                </div>
+
+                <div class="overflow-x-auto custom-scroll max-h-[420px]">
+                  <table class="w-full text-left border-collapse">
+                    <thead>
+                      <tr class="bg-slate-50 border-b border-slate-200 text-[11px] font-bold text-slate-500 uppercase">
+                        <th class="py-2.5 px-3">Waktu</th>
+                        <th class="py-2.5 px-3">Pelanggan & Tujuan</th>
+                        <th class="py-2.5 px-3">Pesan</th>
+                        <th class="py-2.5 px-3">Status API</th>
+                        <th class="py-2.5 px-3">Oleh</th>
+                      </tr>
+                    </thead>
+                    <tbody id="logs-table-body" class="divide-y divide-slate-100 text-xs">
+                      <!-- Di-render lewat JS -->
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            </div>
+          </div>
+        </section>
+      </main>
+    </div>
+
+    <!-- MOBILE BOTTOM NAVIGATION BAR -->
+    <nav id="mobile-bottom-nav" class="fixed bottom-0 left-0 right-0 h-16 bg-white/95 backdrop-blur border-t border-slate-200 px-2 items-center justify-around z-40 shadow-lg">
+      <!-- Di-render secara dinamis sesuai Role -->
+    </nav>
+  </div>
+
+  <!-- MODAL 1: AUTOMASI REKAP DATABASE (BULK SMART PARSER WA / CSV) -->
+  <div id="modal-smart-parser" class="hidden fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-sm flex items-center justify-center p-4">
+    <div class="bg-white rounded-2xl max-w-2xl w-full shadow-2xl border border-slate-200 overflow-hidden animate-fade-in flex flex-col max-h-[90vh]">
+      <div class="px-5 py-4 bg-slate-900 text-white flex items-center justify-between">
+        <div class="flex items-center gap-2.5">
+          <i class="fa-solid fa-wand-magic-sparkles text-emerald-400"></i>
+          <div>
+            <h3 class="text-sm font-bold">Automasi Rekap Database ke CRM (Smart Bulk Parser)</h3>
+            <p class="text-[11px] text-slate-300">Paste daftar chat WA, form order, atau baris CSV untuk diekstrak otomatis</p>
+          </div>
+        </div>
+        <button type="button" data-close-modal="modal-smart-parser" class="text-slate-400 hover:text-white p-1">
+          <i class="fa-solid fa-xmark text-lg"></i>
+        </button>
+      </div>
+
+      <div class="p-5 overflow-y-auto custom-scroll space-y-4">
+        <div class="grid grid-cols-1 sm:grid-cols-3 gap-3">
+          <div>
+            <label class="block text-xs font-semibold text-slate-700 mb-1">Sumber Leads Default</label>
+            <select id="parser-default-source" class="w-full px-3 py-2 text-xs bg-slate-50 border border-slate-200 rounded-xl font-medium">
+              <option value="WhatsApp Masuk">WhatsApp Masuk</option>
+              <option value="Meta Ads">Meta Ads (FB/IG)</option>
+              <option value="TikTok Ads">TikTok Ads</option>
+              <option value="Google / Website">Google / Website</option>
+              <option value="Referral / Event">Referral / Event</option>
+            </select>
+          </div>
+          <div>
+            <label class="block text-xs font-semibold text-slate-700 mb-1">Status Awal Pipeline</label>
+            <select id="parser-default-status" class="w-full px-3 py-2 text-xs bg-slate-50 border border-slate-200 rounded-xl font-medium">
+              <option value="Baru">Baru Masuk</option>
+              <option value="Cold">Cold</option>
+              <option value="Warm">Warm</option>
+              <option value="Hot">Hot</option>
+            </select>
+          </div>
+          <div>
+            <label class="block text-xs font-semibold text-slate-700 mb-1">Distribusi Penugasan CS</label>
+            <select id="parser-assign-mode" class="w-full px-3 py-2 text-xs bg-slate-50 border border-slate-200 rounded-xl font-medium">
+              <option value="ROTATOR">Auto-Rotator (Bagi Rata CS Aktif)</option>
+            </select>
+          </div>
+        </div>
+
+        <div>
+          <div class="flex items-center justify-between mb-1">
+            <label class="text-xs font-semibold text-slate-700">Paste Teks Mentah / Rekap Chat / CSV (1 baris per pelanggan)</label>
+            <button type="button" id="btn-fill-sample-parse" class="text-[11px] font-semibold text-emerald-600 hover:underline">Isi Contoh Format</button>
+          </div>
+          <textarea id="parser-raw-input" rows="5" placeholder="Contoh format bebas yang otomatis dikenali:&#10;Budi Santoso - 081234567890 - Tanya paket korporat&#10;Siti Aminah, +62 857-9876-5432, Minat promo bulan ini&#10;081122334455 Andi Wijaya (Follow up besok)" class="w-full p-3 text-xs font-mono bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:bg-white focus:ring-2 focus:ring-emerald-600"></textarea>
+        </div>
+
+        <div class="flex items-center justify-between">
+          <button type="button" id="btn-run-extract-preview" class="px-4 py-2 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-800 text-xs font-bold transition flex items-center gap-1.5">
+            <i class="fa-solid fa-magnifying-glass-chart text-emerald-600"></i> Deteksi & Ekstrak Data
+          </button>
+          <span id="parser-detected-summary" class="text-xs font-bold text-emerald-700">0 baris terdeteksi</span>
+        </div>
+
+        <!-- Hasil Preview Ekstraksi -->
+        <div id="parser-preview-box" class="hidden border border-slate-200 rounded-xl overflow-hidden">
+          <div class="max-h-44 overflow-y-auto custom-scroll">
+            <table class="w-full text-left border-collapse text-xs">
+              <thead class="bg-slate-50 border-b border-slate-200 text-[10px] font-bold uppercase text-slate-500">
+                <tr>
+                  <th class="py-2 px-3">Nama Terdeteksi</th>
+                  <th class="py-2 px-3">No. WhatsApp (Normalisasi 62)</th>
+                  <th class="py-2 px-3">Catatan</th>
+                  <th class="py-2 px-3">CS</th>
+                </tr>
+              </thead>
+              <tbody id="parser-preview-tbody" class="divide-y divide-slate-100"></tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+
+      <div class="px-5 py-3.5 bg-slate-50 border-t border-slate-200 flex items-center justify-end gap-2">
+        <button type="button" data-close-modal="modal-smart-parser" class="px-4 py-2 rounded-xl border border-slate-200 text-xs font-semibold text-slate-600 hover:bg-slate-100">
+          Batal
+        </button>
+        <button type="button" id="btn-save-parsed-leads" class="px-5 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold shadow-sm transition flex items-center gap-1.5">
+          <i class="fa-solid fa-cloud-arrow-up"></i> Simpan Semua ke Database CRM
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- MODAL 2: TAMBAH / EDIT LEAD TUNGGAL -->
+  <div id="modal-lead-form" class="hidden fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-sm flex items-center justify-center p-4">
+    <div class="bg-white rounded-2xl max-w-md w-full shadow-2xl border border-slate-200 overflow-hidden animate-fade-in">
+      <div class="px-5 py-4 bg-slate-900 text-white flex items-center justify-between">
+        <h3 id="modal-lead-title" class="text-sm font-bold">Tambah Data Lead Baru</h3>
+        <button type="button" data-close-modal="modal-lead-form" class="text-slate-400 hover:text-white">
+          <i class="fa-solid fa-xmark"></i>
+        </button>
+      </div>
+      <form id="form-single-lead" class="p-5 space-y-3.5">
+        <input type="hidden" id="lead-input-id" value="" />
+        <div>
+          <label class="block text-xs font-semibold text-slate-700 mb-1">Nama Pelanggan / Instansi</label>
+          <input id="lead-input-name" type="text" required placeholder="Contoh: PT Maju Bersama / Bpk Hendra" class="w-full px-3.5 py-2 text-xs sm:text-sm bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:bg-white focus:ring-2 focus:ring-slate-900" />
+        </div>
+        <div>
+          <label class="block text-xs font-semibold text-slate-700 mb-1">Nomor WhatsApp</label>
+          <input id="lead-input-wa" type="text" required placeholder="0812xxxx atau 62812xxxx" class="w-full px-3.5 py-2 text-xs sm:text-sm bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:bg-white focus:ring-2 focus:ring-slate-900" />
+        </div>
+        <div class="grid grid-cols-2 gap-3">
+          <div>
+            <label class="block text-xs font-semibold text-slate-700 mb-1">Sumber Leads</label>
+            <select id="lead-input-source" class="w-full px-3 py-2 text-xs bg-slate-50 border border-slate-200 rounded-xl font-medium">
+              <option value="WhatsApp Masuk">WhatsApp Masuk</option>
+              <option value="Meta Ads">Meta Ads (FB/IG)</option>
+              <option value="TikTok Ads">TikTok Ads</option>
+              <option value="Google / Website">Google / Website</option>
+              <option value="Referral / Event">Referral / Event</option>
+            </select>
+          </div>
+          <div>
+            <label class="block text-xs font-semibold text-slate-700 mb-1">Status Pipeline</label>
+            <select id="lead-input-status" class="w-full px-3 py-2 text-xs bg-slate-50 border border-slate-200 rounded-xl font-medium">
+              <option value="Baru">Baru</option>
+              <option value="Cold">Cold</option>
+              <option value="Warm">Warm</option>
+              <option value="Hot">Hot</option>
+              <option value="Closing">Closing</option>
+              <option value="Lost">Lost</option>
+            </select>
+          </div>
+        </div>
+        <div>
+          <label class="block text-xs font-semibold text-slate-700 mb-1">Ditugaskan ke Agen CS</label>
+          <select id="lead-input-assigned" class="w-full px-3 py-2 text-xs bg-slate-50 border border-slate-200 rounded-xl font-medium"></select>
+        </div>
+        <div>
+          <label class="block text-xs font-semibold text-slate-700 mb-1">Catatan Kebutuhan / Rekap Diskusi</label>
+          <textarea id="lead-input-notes" rows="3" placeholder="Tulis ringkasan kebutuhan prospek..." class="w-full p-3 text-xs bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:bg-white focus:ring-2 focus:ring-slate-900"></textarea>
+        </div>
+        <div class="flex justify-end gap-2 pt-2">
+          <button type="button" data-close-modal="modal-lead-form" class="px-4 py-2 rounded-xl border border-slate-200 text-xs font-semibold text-slate-600">Batal</button>
+          <button type="submit" class="px-5 py-2 rounded-xl bg-slate-900 hover:bg-slate-800 text-white text-xs font-bold">Simpan Data</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- MODAL 3: KIRIM PESAN WA FONNTE 1-KLIK (DARI TABEL LEADS) -->
+  <div id="modal-send-fonnte" class="hidden fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-sm flex items-center justify-center p-4">
+    <div class="bg-white rounded-2xl max-w-md w-full shadow-2xl border border-slate-200 overflow-hidden animate-fade-in">
+      <div class="px-5 py-4 bg-emerald-600 text-white flex items-center justify-between">
+        <div class="flex items-center gap-2">
+          <i class="fa-brands fa-whatsapp text-lg"></i>
+          <div>
+            <h3 class="text-sm font-bold">Follow-Up WhatsApp via Fonnte</h3>
+            <p id="send-wa-target-label" class="text-[11px] text-emerald-100">Target: -</p>
+          </div>
+        </div>
+        <button type="button" data-close-modal="modal-send-fonnte" class="text-emerald-100 hover:text-white">
+          <i class="fa-solid fa-xmark"></i>
+        </button>
+      </div>
+      <form id="form-send-direct-wa" class="p-5 space-y-3.5">
+        <input type="hidden" id="send-wa-lead-id" value="" />
+        <div>
+          <label class="block text-xs font-semibold text-slate-700 mb-1">Gunakan Template Follow-Up</label>
+          <select id="send-wa-template-picker" class="w-full px-3 py-2 text-xs bg-slate-50 border border-slate-200 rounded-xl font-medium">
+            <option value="">-- Ketik Manual / Pilih Template --</option>
+          </select>
+        </div>
+        <div>
+          <label class="block text-xs font-semibold text-slate-700 mb-1">Pesan yang Akan Dikirim</label>
+          <textarea id="send-wa-message-text" rows="5" required class="w-full p-3 text-xs sm:text-sm bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:bg-white focus:ring-2 focus:ring-emerald-600"></textarea>
+        </div>
+        <div>
+          <label class="block text-xs font-semibold text-slate-700 mb-1">Update Status Pipeline Setelah Terkirim</label>
+          <select id="send-wa-next-status" class="w-full px-3 py-2 text-xs bg-slate-50 border border-slate-200 rounded-xl font-medium">
+            <option value="KEEP">Tetap Seperti Sekarang</option>
+            <option value="Cold">Ubah ke: Cold</option>
+            <option value="Warm">Ubah ke: Warm</option>
+            <option value="Hot">Ubah ke: Hot</option>
+            <option value="Closing">Ubah ke: Closing</option>
+          </select>
+        </div>
+        <div class="flex items-center justify-between gap-2 pt-2">
+          <button type="button" id="btn-fallback-wa-web" class="px-3 py-2 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-semibold flex items-center gap-1.5" title="Buka di aplikasi WA langsung">
+            <i class="fa-solid fa-arrow-up-right-from-square"></i> Buka WA Web
+          </button>
+          <div class="flex items-center gap-2">
+            <button type="button" data-close-modal="modal-send-fonnte" class="px-3.5 py-2 rounded-xl border border-slate-200 text-xs font-semibold text-slate-600">Batal</button>
+            <button type="submit" id="btn-submit-direct-fonnte" class="px-4 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold flex items-center gap-1.5 shadow-sm">
+              <i class="fa-solid fa-paper-plane"></i> Kirim via API Fonnte
+            </button>
+          </div>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- MODAL 4: TAMBAH / EDIT TEMPLATE PESAN -->
+  <div id="modal-template-form" class="hidden fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-sm flex items-center justify-center p-4">
+    <div class="bg-white rounded-2xl max-w-md w-full shadow-2xl border border-slate-200 overflow-hidden animate-fade-in">
+      <div class="px-5 py-4 bg-slate-900 text-white flex items-center justify-between">
+        <h3 id="modal-tpl-title" class="text-sm font-bold">Buat Template Pesan Baru</h3>
+        <button type="button" data-close-modal="modal-template-form" class="text-slate-400 hover:text-white">
+          <i class="fa-solid fa-xmark"></i>
+        </button>
+      </div>
+      <form id="form-template" class="p-5 space-y-3.5">
+        <input type="hidden" id="tpl-input-id" value="" />
+        <div>
+          <label class="block text-xs font-semibold text-slate-700 mb-1">Judul Template</label>
+          <input id="tpl-input-title" type="text" required placeholder="Contoh: Sapaan Prospek Baru Meta Ads" class="w-full px-3.5 py-2 text-xs sm:text-sm bg-slate-50 border border-slate-200 rounded-xl" />
+        </div>
+        <div>
+          <label class="block text-xs font-semibold text-slate-700 mb-1">Kategori Pipeline</label>
+          <select id="tpl-input-category" class="w-full px-3 py-2 text-xs bg-slate-50 border border-slate-200 rounded-xl font-medium">
+            <option value="Sapaan Awal">Sapaan Awal</option>
+            <option value="Follow-Up Warm">Follow-Up Warm</option>
+            <option value="Penawaran Promo">Penawaran Promo</option>
+            <option value="Konfirmasi Closing">Konfirmasi Closing</option>
+          </select>
+        </div>
+        <div>
+          <label class="block text-xs font-semibold text-slate-700 mb-1">Isi Pesan (Gunakan <code class="bg-slate-100 px-1 rounded">{nama}</code>, <code class="bg-slate-100 px-1 rounded">{sumber}</code>)</label>
+          <textarea id="tpl-input-message" rows="4" required placeholder="Halo Kak {nama}, perkenalkan saya dari tim kami..." class="w-full p-3 text-xs sm:text-sm bg-slate-50 border border-slate-200 rounded-xl"></textarea>
+        </div>
+        <div class="flex justify-end gap-2 pt-2">
+          <button type="button" data-close-modal="modal-template-form" class="px-4 py-2 rounded-xl border border-slate-200 text-xs font-semibold text-slate-600">Batal</button>
+          <button type="submit" class="px-5 py-2 rounded-xl bg-slate-900 hover:bg-slate-800 text-white text-xs font-bold">Simpan Template</button>
+        </div>
+      </form>
+    </div>
+  </div>
+</div>
+
+<script type="module">
+// KONFIGURASI APLIKASI
+const IS_PREVIEW = true; // Ubah menjadi false SAAT DEPLOY / PUBLISH agar terhubung murni ke Firebase tanpa data dummy
+
+// PASTE FIREBASE CONFIG ANDA DI SINI
+const firebaseConfig = {
+  apiKey: "API_KEY_ANDA",
+  authDomain: "PROJECT_ID.firebaseapp.com",
+  projectId: "PROJECT_ID",
+  storageBucket: "PROJECT_ID.appspot.com",
+  messagingSenderId: "SENDER_ID",
+  appId: "APP_ID"
+};
+
+import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
+import {
+  getAuth,
+  signInWithEmailAndPassword,
+  signOut,
+  onAuthStateChanged
+} from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
+import {
+  getFirestore,
+  collection,
+  doc,
+  addDoc,
+  setDoc,
+  getDoc,
+  getDocs,
+  updateDoc,
+  deleteDoc,
+  onSnapshot,
+  query,
+  where
+} from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+
+// REGISTRASI PWA SERVICE WORKER DINAMIS (1 FILE)
+if ("serviceWorker" in navigator) {
+  const swCode = `
+    self.addEventListener('install', (e) => self.skipWaiting());
+    self.addEventListener('activate', (e) => e.waitUntil(self.clients.claim()));
+    self.addEventListener('fetch', () => {});
+  `;
+  const blob = new Blob([swCode], { type: "application/javascript" });
+  const swUrl = URL.createObjectURL(blob);
+  navigator.serviceWorker.register(swUrl).catch(() => {});
+}
+
+// STATE GLOBAL APLIKASI
+let app = null;
+let auth = null;
+let db = null;
+let unsubscribeListeners = [];
+
+let currentUser = null; // { role: 'admin' | 'cs', name, username, email }
+let activeView = "dashboard";
+let parsedPreviewBuffer = [];
+let rotatorIndex = 0;
+
+// STATE KOLEKSI DATA
+let stateUsers = [];
+let stateLeads = [];
+let stateTemplates = [];
+let stateLogs = [];
+let stateSettings = {
+  fonnteToken: "",
+  autoWelcome: false,
+  welcomeTemplateId: ""
+};
+
+// INISIALISASI DATA KHUSUS MODE PREVIEW (MAKSIMAL 2 DATA DUMMY PER KOLEKSI)
+function initPreviewMemoryData() {
+  if (!IS_PREVIEW) return;
+
+  stateUsers = [
+    {
+      id: "cs-demo-1",
+      username: "cs_nadia",
+      password: "123456",
+      name: "Nadia Putri",
+      phone: "6281234567801",
+      role: "cs",
+      active: true,
+      createdAt: Date.now() - 86400000 * 3
+    },
+    {
+      id: "cs-demo-2",
+      username: "cs_rizky",
+      password: "123456",
+      name: "Rizky Pratama",
+      phone: "6281234567802",
+      role: "cs",
+      active: true,
+      createdAt: Date.now() - 86400000 * 2
+    }
+  ];
+
+  stateLeads = [
+    {
+      id: "lead-demo-1",
+      name: "Budi Santoso (PT Sinergi)",
+      whatsapp: "6281298765432",
+      source: "Meta Ads",
+      status: "Warm",
+      assignedTo: "cs_nadia",
+      notes: "Minta proposal paket langganan tahunan untuk 25 cabang.",
+      lastFollowUp: Date.now() - 3600000 * 5,
+      createdAt: Date.now() - 86400000 * 2
+    },
+    {
+      id: "lead-demo-2",
+      name: "Siti Rahmawati",
+      whatsapp: "6285711223344",
+      source: "WhatsApp Masuk",
+      status: "Closing",
+      assignedTo: "cs_rizky",
+      notes: "Sudah transfer invoice #INV-209, lanjut aktivasi akun.",
+      lastFollowUp: Date.now() - 3600000 * 2,
+      createdAt: Date.now() - 86400000
+    }
+  ];
+
+  stateTemplates = [
+    {
+      id: "tpl-demo-1",
+      title: "Sapaan Cepat Prospek Baru",
+      category: "Sapaan Awal",
+      message: "Halo Kak {nama}, terima kasih sudah menghubungi kami melalui {sumber}. Ada yang bisa kami bantu jelaskan terkait layanan kami?",
+      updatedAt: Date.now()
+    },
+    {
+      id: "tpl-demo-2",
+      title: "Follow-Up Prospek Warm",
+      category: "Follow-Up Warm",
+      message: "Halo Kak {nama}, sekadar menanyakan kembali apakah penawaran yang kami kirimkan sebelumnya sudah sesuai dengan kebutuhan Kakak?",
+      updatedAt: Date.now()
+    }
+  ];
+
+  stateLogs = [
+    {
+      id: "log-demo-1",
+      leadId: "lead-demo-1",
+      leadName: "Budi Santoso (PT Sinergi)",
+      targetWa: "6281298765432",
+      messageSent: "Halo Kak Budi Santoso (PT Sinergi), terima kasih sudah menghubungi kami...",
+      statusApi: "Berhasil (Simulasi)",
+      sentBy: "cs_nadia",
+      timestamp: Date.now() - 3600000 * 5
+    }
+  ];
+
+  stateSettings = {
+    fonnteToken: "SIMULASI_TOKEN_FONNTE_PREVIEW",
+    autoWelcome: true,
+    welcomeTemplateId: "tpl-demo-1"
+  };
+}
+
+// FUNGSI UTILITAS UMUM
+function showToast(message, type = "success") {
+  const container = document.getElementById("toast-container");
+  const el = document.createElement("div");
+  const colorMap = {
+    success: "bg-slate-900 text-white border-emerald-500",
+    error: "bg-rose-600 text-white border-rose-400",
+    info: "bg-sky-600 text-white border-sky-400"
+  };
+  const iconMap = {
+    success: "fa-circle-check text-emerald-400",
+    error: "fa-triangle-exclamation text-white",
+    info: "fa-circle-info text-white"
+  };
+  el.className = `pointer-events-auto flex items-center gap-2.5 px-4 py-3 rounded-xl shadow-lg border-l-4 text-xs font-semibold animate-fade-in ${colorMap[type] || colorMap.success}`;
+  el.innerHTML = `<i class="fa-solid ${iconMap[type] || iconMap.success} text-sm"></i><span class="flex-1">${escapeHtml(message)}</span>`;
+  container.appendChild(el);
+  setTimeout(() => {
+    el.style.opacity = "0";
+    setTimeout(() => el.remove(), 250);
+  }, 3400);
+}
+
+function escapeHtml(str) {
+  return String(str ?? "")
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#039;");
+}
+
+// Normalisasi Nomor WA ke standar 628xxx untuk API Fonnte
+function normalizeWaNumber(raw) {
+  let digits = String(raw || "").replace(/[^0-9]/g, "");
+  if (!digits) return "";
+  if (digits.startsWith("08")) {
+    digits = "62" + digits.slice(1);
+  } else if (digits.startsWith("8")) {
+    digits = "62" + digits;
+  } else if (digits.startsWith("0062")) {
+    digits = digits.slice(2);
+  }
+  return digits;
+}
+
+function formatDateTime(ts) {
+  if (!ts) return "-";
+  const d = new Date(typeof ts === "object" && ts.seconds ? ts.seconds * 1000 : Number(ts));
+  if (isNaN(d.getTime())) return "-";
+  return d.toLocaleDateString("id-ID", {
+    day: "2-digit",
+    month: "short",
+    hour: "2-digit",
+    minute: "2-digit"
+  });
+}
+
+function interpolateTemplate(templateText, leadObj) {
+  return String(templateText || "")
+    .replace(/\{nama\}/gi, leadObj?.name || "Kak")
+    .replace(/\{sumber\}/gi, leadObj?.source || "WhatsApp")
+    .replace(/\{status\}/gi, leadObj?.status || "Baru")
+    .replace(/\{cs_nama\}/gi, currentUser?.name || "Admin");
+}
+
+// SINKRONISASI REAL-TIME FIRESTORE (HANYA SAAT IS_PREVIEW === false)
+function detachFirestoreListeners() {
+  unsubscribeListeners.forEach((unsub) => {
+    if (typeof unsub === "function") unsub();
+  });
+  unsubscribeListeners = [];
+}
+
+function startProductionListeners() {
+  if (IS_PREVIEW || !db || !currentUser) return;
+  detachFirestoreListeners();
+
+  // 1. Koleksi crm_users
+  const unsubUsers = onSnapshot(
+    collection(db, "crm_users"),
+    (snap) => {
+      stateUsers = snap.docs.map((d) => ({ id: d.id, ...d.data() }));
+      renderAllViews();
+    },
+    (err) => showToast("Gagal memuat daftar CS: " + err.message, "error")
+  );
+
+  // 2. Koleksi crm_leads
+  const unsubLeads = onSnapshot(
+    collection(db, "crm_leads"),
+    (snap) => {
+      stateLeads = snap.docs
+        .map((d) => ({ id: d.id, ...d.data() }))
+        .sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0));
+      renderAllViews();
+    },
+    (err) => showToast("Gagal memuat database leads: " + err.message, "error")
+  );
+
+  // 3. Koleksi crm_templates
+  const unsubTemplates = onSnapshot(
+    collection(db, "crm_templates"),
+    (snap) => {
+      stateTemplates = snap.docs.map((d) => ({ id: d.id, ...d.data() }));
+      renderAllViews();
+    },
+    (err) => showToast("Gagal memuat template: " + err.message, "error")
+  );
+
+  // 4. Koleksi crm_logs
+  const unsubLogs = onSnapshot(
+    collection(db, "crm_logs"),
+    (snap) => {
+      stateLogs = snap.docs
+        .map((d) => ({ id: d.id, ...d.data() }))
+        .sort((a, b) => (b.timestamp || 0) - (a.timestamp || 0));
+      renderAllViews();
+    },
+    (err) => showToast("Gagal memuat riwayat log: " + err.message, "error")
+  );
+
+  // 5. Dokumen crm_settings/fonnte
+  const unsubSettings = onSnapshot(
+    doc(db, "crm_settings", "fonnte"),
+    (docSnap) => {
+      if (docSnap.exists()) {
+        stateSettings = { ...stateSettings, ...docSnap.data() };
+      }
+      renderAllViews();
+    },
+    () => {}
+  );
+
+  unsubscribeListeners.push(unsubUsers, unsubLeads, unsubTemplates, unsubLogs, unsubSettings);
+}
+
+// INTEGRASI API FONNTE (REAL HTTP POST & PREVIEW FALLBACK)
+async function sendFonnteWhatsApp({ targetWa, message, leadId = "", leadName = "" }) {
+  const cleanTarget = normalizeWaNumber(targetWa);
+  if (!cleanTarget || cleanTarget.length < 9) {
+    throw new Error("Nomor WhatsApp tidak valid.");
+  }
+
+  let apiStatusText = "Gagal";
+  const token = (stateSettings.fonnteToken || "").trim();
+
+  if (IS_PREVIEW && (!token || token === "SIMULASI_TOKEN_FONNTE_PREVIEW")) {
+    // Simulasi pengiriman di Mode Preview jika pengguna belum mengganti token asli
+    await new Promise((r) => setTimeout(r, 450));
+    apiStatusText = "Berhasil (Simulasi Preview)";
+  } else {
+    if (!token) {
+      throw new Error("Token API Fonnte belum diatur oleh Admin di menu Pengaturan.");
+    }
+    const formData = new FormData();
+    formData.append("target", cleanTarget);
+    formData.append("message", message);
+    formData.append("countryCode", "62");
+
+    const response = await fetch("https://api.fonnte.com/send", {
+      method: "POST",
+      headers: {
+        Authorization: token
+      },
+      body: formData
+    });
+    const result = await response.json();
+    if (result && result.status === true) {
+      apiStatusText = "Berhasil";
+    } else {
+      apiStatusText = "Gagal: " + (result?.reason || " Periksa Token/Device Fonnte");
+    }
+  }
+
+  // Catat ke koleksi crm_logs
+  const logPayload = {
+    leadId,
+    leadName: leadName || cleanTarget,
+    targetWa: cleanTarget,
+    messageSent: message,
+    statusApi: apiStatusText,
+    sentBy: currentUser?.username || currentUser?.email || "system",
+    timestamp: Date.now()
+  };
+
+  if (IS_PREVIEW) {
+    stateLogs.unshift({ id: "log-" + Date.now() + Math.random(), ...logPayload });
+  } else {
+    await addDoc(collection(db, "crm_logs"), logPayload);
+  }
+
+  // Perbarui waktu lastFollowUp pada lead terkait
+  if (leadId) {
+    if (IS_PREVIEW) {
+      const idx = stateLeads.findIndex((l) => l.id === leadId);
+      if (idx !== -1) stateLeads[idx].lastFollowUp = Date.now();
+    } else {
+      await updateDoc(doc(db, "crm_leads", leadId), { lastFollowUp: Date.now() });
+    }
+  }
+
+  renderAllViews();
+  if (apiStatusText.startsWith("Gagal")) {
+    throw new Error(apiStatusText);
+  }
+  return apiStatusText;
+}
+
+// KONFIGURASI MENU BERDASARKAN ROLE (ADMIN VS CS)
+const MENU_ITEMS = [
+  { id: "dashboard", label: "Dashboard & Rekap", shortLabel: "Dashboard", icon: "fa-chart-pie", roles: ["admin", "cs"] },
+  { id: "leads", label: "Database Leads CRM", shortLabel: "Leads", icon: "fa-address-book", roles: ["admin", "cs"] },
+  { id: "broadcast", label: "Broadcast & Template", shortLabel: "Broadcast", icon: "fa-paper-plane", roles: ["admin", "cs"] },
+  { id: "team", label: "Manajemen Tim CS", shortLabel: "Tim CS", icon: "fa-users-gear", roles: ["admin"] },
+  { id: "settings", label: "Integrasi Fonnte & Log", shortLabel: "Fonnte", icon: "fa-plug", roles: ["admin"] }
+];
+
+function switchMenu(viewId) {
+  const allowed = MENU_ITEMS.find((m) => m.id === viewId && m.roles.includes(currentUser?.role));
+  if (!allowed) return;
+  activeView = viewId;
+
+  MENU_ITEMS.forEach((item) => {
+    const sec = document.getElementById(`view-${item.id}`);
+    if (sec) sec.classList.toggle("hidden", item.id !== activeView);
+  });
+
+  const topTitle = document.getElementById("topbar-title");
+  if (topTitle) topTitle.textContent = allowed.label;
+
+  renderNavigationMenus();
+  renderAllViews();
+}
+
+function renderNavigationMenus() {
+  if (!currentUser) return;
+  const desktopNav = document.getElementById("desktop-nav-links");
+  const mobileNav = document.getElementById("mobile-bottom-nav");
+
+  const visibleMenus = MENU_ITEMS.filter((m) => m.roles.includes(currentUser.role));
+
+  desktopNav.innerHTML = visibleMenus
+    .map((m) => {
+      const isActive = m.id === activeView;
+      return `
+        <button type="button" data-nav-target="${m.id}" class="w-full flex items-center gap-3 px-3.5 py-2.5 rounded-xl text-xs font-bold transition-all ${
+          isActive
+            ? "bg-slate-900 text-white shadow-sm"
+            : "text-slate-600 hover:bg-slate-100 hover:text-slate-900"
+        }">
+          <i class="fa-solid ${m.icon} w-4 text-center ${isActive ? "text-emerald-400" : "text-slate-400"}"></i>
+          <span>${m.label}</span>
+        </button>
+      `;
+    })
+    .join("");
+
+  mobileNav.innerHTML = visibleMenus
+    .map((m) => {
+      const isActive = m.id === activeView;
+      return `
+        <button type="button" data-nav-target="${m.id}" class="flex-1 flex flex-col items-center justify-center py-1.5 rounded-xl transition ${
+          isActive ? "text-emerald-600 font-bold" : "text-slate-400 font-medium"
+        }">
+          <i class="fa-solid ${m.icon} text-base mb-0.5"></i>
+          <span class="text-[10px]">${m.shortLabel}</span>
+        </button>
+      `;
+    })
+    .join("");
+
+  document.querySelectorAll("[data-nav-target]").forEach((btn) => {
+    btn.addEventListener("click", () => switchMenu(btn.getAttribute("data-nav-target")));
+  });
+}
+
+// Dapatkan daftar leads sesuai hak akses (Admin melihat semua, CS melihat miliknya)
+function getAccessibleLeads() {
+  if (!currentUser) return [];
+  if (currentUser.role === "admin") return stateLeads;
+  return stateLeads.filter((l) => l.assignedTo === currentUser.username);
+}
+
+function renderDashboardView() {
+  const leads = getAccessibleLeads();
+  const total = leads.length;
+  const coldCount = leads.filter((l) => l.status === "Baru" || l.status === "Cold").length;
+  const warmHotCount = leads.filter((l) => l.status === "Warm" || l.status === "Hot").length;
+  const closingCount = leads.filter((l) => l.status === "Closing").length;
+  const convRate = total > 0 ? Math.round((closingCount / total) * 100) : 0;
+
+  document.getElementById("stat-total-leads").textContent = total;
+  document.getElementById("stat-cold-leads").textContent = coldCount;
+  document.getElementById("stat-warm-hot").textContent = warmHotCount;
+  document.getElementById("stat-closing-leads").textContent = closingCount;
+  document.getElementById("stat-conversion-rate").textContent = `Rasio Konversi: ${convRate}%`;
+  document.getElementById("stat-wa-sent").textContent = stateLogs.length;
+
+  // Render Bar Pipeline
+  const statuses = [
+    { key: "Baru", label: "Baru Masuk", color: "bg-slate-600" },
+    { key: "Cold", label: "Cold (Edukasi)", color: "bg-sky-500" },
+    { key: "Warm", label: "Warm (Tertarik)", color: "bg-amber-500" },
+    { key: "Hot", label: "Hot (Negosiasi)", color: "bg-orange-500" },
+    { key: "Closing", label: "Closing (Deal)", color: "bg-emerald-600" },
+    { key: "Lost", label: "Lost / Batal", color: "bg-rose-500" }
+  ];
+
+  const barsContainer = document.getElementById("pipeline-bars-container");
+  barsContainer.innerHTML = statuses
+    .map((st) => {
+      const count = leads.filter((l) => l.status === st.key).length;
+      const pct = total > 0 ? Math.round((count / total) * 100) : 0;
+      return `
+        <div class="space-y-1">
+          <div class="flex justify-between text-xs font-semibold">
+            <span class="text-slate-700">${st.label}</span>
+            <span class="text-slate-900">${count} Leads (${pct}%)</span>
+          </div>
+          <div class="w-full h-2.5 bg-slate-100 rounded-full overflow-hidden">
+            <div class="h-full ${st.color} rounded-full transition-all duration-300" style="width: ${pct}%"></div>
+          </div>
+        </div>
+      `;
+    })
+    .join("");
+
+  // Performa CS
+  const csListEl = document.getElementById("cs-performance-list");
+  if (stateUsers.length === 0) {
+    csListEl.innerHTML = `<p class="text-xs text-slate-400 py-4 text-center">Belum ada agen CS terdaftar.</p>`;
+  } else {
+    csListEl.innerHTML = stateUsers
+      .map((u) => {
+        const assigned = stateLeads.filter((l) => l.assignedTo === u.username);
+        const closed = assigned.filter((l) => l.status === "Closing").length;
+        return `
+          <div class="flex items-center justify-between p-2.5 rounded-xl bg-slate-50 border border-slate-200/70">
+            <div>
+              <p class="text-xs font-bold text-slate-800">${escapeHtml(u.name)}</p>
+              <p class="text-[11px] text-slate-500">@${escapeHtml(u.username)}</p>
+            </div>
+            <div class="text-right">
+              <span class="text-xs font-bold text-slate-900">${assigned.length} Leads</span>
+              <span class="block text-[10px] font-semibold text-emerald-600">${closed} Closing</span>
+            </div>
+          </div>
+        `;
+      })
+      .join("");
+  }
+
+  // Sumber Terbanyak
+  const sourceMap = {};
+  leads.forEach((l) => {
+    const s = l.source || "Lainnya";
+    sourceMap[s] = (sourceMap[s] || 0) + 1;
+  });
+  const topSource = Object.entries(sourceMap).sort((a, b) => b[1] - a[1])[0];
+  document.getElementById("stat-top-source").textContent = topSource ? `${topSource[0]} (${topSource[1]})` : "-";
+}
+
+// RENDER TABEL DATA LEADS & FILTER
+function renderLeadsView() {
+  const searchVal = (document.getElementById("filter-search-leads")?.value || "").toLowerCase().trim();
+  const statusVal = document.getElementById("filter-status-leads")?.value || "ALL";
+  const sourceVal = document.getElementById("filter-source-leads")?.value || "ALL";
+  const csVal = document.getElementById("filter-cs-leads")?.value || "ALL";
+
+  // Populate CS Filter Dropdown
+  const csFilterEl = document.getElementById("filter-cs-leads");
+  if (csFilterEl) {
+    const currentSelection = csFilterEl.value;
+    csFilterEl.innerHTML =
+      `<option value="ALL">Semua Agen CS</option>` +
+      stateUsers.map((u) => `<option value="${escapeHtml(u.username)}">${escapeHtml(u.name)} (@${escapeHtml(u.username)})</option>`).join("");
+    if ([...csFilterEl.options].some((o) => o.value === currentSelection)) {
+      csFilterEl.value = currentSelection;
+    }
+  }
+
+  const baseLeads = getAccessibleLeads();
+  const filtered = baseLeads.filter((item) => {
+    const matchSearch =
+      !searchVal ||
+      (item.name || "").toLowerCase().includes(searchVal) ||
+      (item.whatsapp || "").toLowerCase().includes(searchVal) ||
+      (item.notes || "").toLowerCase().includes(searchVal);
+    const matchStatus = statusVal === "ALL" || item.status === statusVal;
+    const matchSource = sourceVal === "ALL" || item.source === sourceVal;
+    const matchCs = csVal === "ALL" || item.assignedTo === csVal;
+    return matchSearch && matchStatus && matchSource && matchCs;
+  });
+
+  document.getElementById("leads-filtered-count").textContent = filtered.length;
+
+  const tbody = document.getElementById("leads-table-body");
+  if (filtered.length === 0) {
+    tbody.innerHTML = `
+      <tr>
+        <td colspan="6" class="py-12 text-center text-slate-400">
+          <i class="fa-regular fa-folder-open text-2xl mb-2 block"></i>
+          <p class="text-xs font-semibold">Belum ada data leads yang sesuai filter.</p>
+        </td>
+      </tr>
+    `;
+    return;
+  }
+
+  const statusBadgeColors = {
+    Baru: "bg-slate-100 text-slate-800 border-slate-300",
+    Cold: "bg-sky-50 text-sky-700 border-sky-200",
+    Warm: "bg-amber-50 text-amber-800 border-amber-200",
+    Hot: "bg-orange-50 text-orange-700 border-orange-200",
+    Closing: "bg-emerald-50 text-emerald-700 border-emerald-200",
+    Lost: "bg-rose-50 text-rose-700 border-rose-200"
+  };
+
+  tbody.innerHTML = filtered
+    .map((lead) => {
+      const badgeClass = statusBadgeColors[lead.status] || statusBadgeColors.Baru;
+      return `
+        <tr class="hover:bg-slate-50/90 transition">
+          <td class="py-3 px-4">
+            <p class="font-bold text-slate-900">${escapeHtml(lead.name)}</p>
+            <p class="text-xs text-emerald-700 font-mono flex items-center gap-1 mt-0.5">
+              <i class="fa-brands fa-whatsapp"></i> +${escapeHtml(lead.whatsapp)}
+            </p>
+          </td>
+          <td class="py-3 px-3">
+            <span class="px-2.5 py-1 rounded-lg bg-slate-100 text-slate-700 text-xs font-medium">${escapeHtml(lead.source || "-")}</span>
+          </td>
+          <td class="py-3 px-3">
+            <select data-quick-status="${lead.id}" class="px-2.5 py-1 rounded-lg border text-xs font-bold focus:outline-none ${badgeClass}">
+              ${["Baru", "Cold", "Warm", "Hot", "Closing", "Lost"]
+                .map((st) => `<option value="${st}" ${lead.status === st ? "selected" : ""}>${st}</option>`)
+                .join("")}
+            </select>
+          </td>
+          <td class="py-3 px-3">
+            <span class="text-xs font-semibold text-slate-700">@${escapeHtml(lead.assignedTo || "admin")}</span>
+          </td>
+          <td class="py-3 px-3 max-w-xs">
+            <p class="text-xs text-slate-600 truncate" title="${escapeHtml(lead.notes || "")}">${escapeHtml(lead.notes || "-")}</p>
+            <p class="text-[10px] text-slate-400 mt-0.5">Follow-up: ${formatDateTime(lead.lastFollowUp)}</p>
+          </td>
+          <td class="py-3 px-4 text-right whitespace-nowrap space-x-1">
+            <button type="button" data-send-wa="${lead.id}" class="px-3 py-1.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold shadow-sm transition inline-flex items-center gap-1.5">
+              <i class="fa-brands fa-whatsapp"></i> Follow-Up
+            </button>
+            <button type="button" data-edit-lead="${lead.id}" class="p-1.5 rounded-lg border border-slate-200 text-slate-600 hover:bg-slate-100" title="Edit Data">
+              <i class="fa-regular fa-pen-to-square text-xs"></i>
+            </button>
+            <button type="button" data-delete-lead="${lead.id}" class="p-1.5 rounded-lg border border-slate-200 text-rose-600 hover:bg-rose-50" title="Hapus">
+              <i class="fa-regular fa-trash-can text-xs"></i>
+            </button>
+          </td>
+        </tr>
+      `;
+    })
+    .join("");
+
+  // Event Listener Quick Status Change
+  tbody.querySelectorAll("[data-quick-status]").forEach((sel) => {
+    sel.addEventListener("change", async (e) => {
+      const id = sel.getAttribute("data-quick-status");
+      const newStatus = e.target.value;
+      try {
+        if (IS_PREVIEW) {
+          const item = stateLeads.find((l) => l.id === id);
+          if (item) item.status = newStatus;
+          renderAllViews();
+        } else {
+          await updateDoc(doc(db, "crm_leads", id), { status: newStatus });
+        }
+        showToast(`Status pipeline diubah ke ${newStatus}`);
+      } catch (err) {
+        showToast("Gagal mengubah status: " + err.message, "error");
+      }
+    });
+  });
+
+  // Event Listener Tombol Follow-Up Fonnte 1-Klik
+  tbody.querySelectorAll("[data-send-wa]").forEach((btn) => {
+    btn.addEventListener("click", () => openDirectFonnteModal(btn.getAttribute("data-send-wa")));
+  });
+
+  // Event Listener Edit Lead
+  tbody.querySelectorAll("[data-edit-lead]").forEach((btn) => {
+    btn.addEventListener("click", () => openLeadModal(btn.getAttribute("data-edit-lead")));
+  });
+
+  // Event Listener Hapus Lead
+  tbody.querySelectorAll("[data-delete-lead]").forEach((btn) => {
+    btn.addEventListener("click", async () => {
+      const id = btn.getAttribute("data-delete-lead");
+      try {
+        if (IS_PREVIEW) {
+          stateLeads = stateLeads.filter((l) => l.id !== id);
+          renderAllViews();
+        } else {
+          await deleteDoc(doc(db, "crm_leads", id));
+        }
+        showToast("Data lead berhasil dihapus");
+      } catch (err) {
+        showToast("Gagal menghapus lead: " + err.message, "error");
+      }
+    });
+  });
+}
+
+function renderBroadcastAndTemplatesView() {
+  const statusSeg = document.getElementById("bc-filter-status")?.value || "ALL";
+  const baseLeads = getAccessibleLeads();
+  const targets = statusSeg === "ALL" ? baseLeads : baseLeads.filter((l) => l.status === statusSeg);
+
+  const badge = document.getElementById("broadcast-target-badge");
+  if (badge) badge.textContent = `${targets.length} Target Leads`;
+
+  // Populate Template Selectors
+  const tplOptions =
+    `<option value="">-- Pilih Template Pesan --</option>` +
+    stateTemplates.map((t) => `<option value="${t.id}">${escapeHtml(t.title)} (${escapeHtml(t.category)})</option>`).join("");
+
+  ["bc-template-select", "send-wa-template-picker", "setting-welcome-template"].forEach((id) => {
+    const el = document.getElementById(id);
+    if (el) {
+      const prev = el.value;
+      el.innerHTML = tplOptions;
+      if (id === "setting-welcome-template" && stateSettings.welcomeTemplateId) {
+        el.value = stateSettings.welcomeTemplateId;
+      } else if ([...el.options].some((o) => o.value === prev)) {
+        el.value = prev;
+      }
+    }
+  });
+
+  // Render Daftar Kartu Template
+  const listContainer = document.getElementById("templates-list-container");
+  if (stateTemplates.length === 0) {
+    listContainer.innerHTML = `<p class="text-xs text-slate-400 text-center py-8">Belum ada template tersimpan.</p>`;
+  } else {
+    listContainer.innerHTML = stateTemplates
+      .map(
+        (t) => `
+        <div class="p-3.5 rounded-xl bg-slate-50 border border-slate-200/80 space-y-1.5">
+          <div class="flex items-center justify-between">
+            <span class="text-xs font-bold text-slate-900">${escapeHtml(t.title)}</span>
+            <div class="flex items-center gap-1">
+              <span class="px-2 py-0.5 rounded bg-emerald-50 text-emerald-700 text-[10px] font-semibold">${escapeHtml(t.category)}</span>
+              <button type="button" data-edit-tpl="${t.id}" class="p-1 text-slate-400 hover:text-slate-700"><i class="fa-regular fa-pen-to-square text-xs"></i></button>
+              <button type="button" data-del-tpl="${t.id}" class="p-1 text-slate-400 hover:text-rose-600"><i class="fa-regular fa-trash-can text-xs"></i></button>
+            </div>
+          </div>
+          <p class="text-xs text-slate-600 leading-relaxed">${escapeHtml(t.message)}</p>
+        </div>
+      `
+      )
+      .join("");
+
+    listContainer.querySelectorAll("[data-edit-tpl]").forEach((btn) => {
+      btn.addEventListener("click", () => openTemplateModal(btn.getAttribute("data-edit-tpl")));
+    });
+    listContainer.querySelectorAll("[data-del-tpl]").forEach((btn) => {
+      btn.addEventListener("click", async () => {
+        const id = btn.getAttribute("data-del-tpl");
+        if (IS_PREVIEW) {
+          stateTemplates = stateTemplates.filter((x) => x.id !== id);
+          renderAllViews();
+        } else {
+          await deleteDoc(doc(db, "crm_templates", id));
+        }
+        showToast("Template dihapus");
+      });
+    });
+  }
+}
+
+function renderTeamView() {
+  const tbody = document.getElementById("team-table-body");
+  if (!tbody) return;
+
+  if (stateUsers.length === 0) {
+    tbody.innerHTML = `<tr><td colspan="5" class="py-8 text-center text-xs text-slate-400">Belum ada akun CS terdaftar.</td></tr>`;
+    return;
+  }
+
+  tbody.innerHTML = stateUsers
+    .map((u) => {
+      const leadCount = stateLeads.filter((l) => l.assignedTo === u.username).length;
+      return `
+        <tr>
+          <td class="py-3 px-3">
+            <p class="font-bold text-slate-900">${escapeHtml(u.name)}</p>
+            <p class="text-xs text-slate-500">+${escapeHtml(u.phone || "-")}</p>
+          </td>
+          <td class="py-3 px-3 font-mono text-xs">
+            <span class="font-bold text-slate-800">${escapeHtml(u.username)}</span>
+            <span class="block text-slate-400">Pass: ${escapeHtml(u.password)}</span>
+          </td>
+          <td class="py-3 px-3">
+            <span class="px-2.5 py-1 rounded-full text-[11px] font-bold ${
+              u.active ? "bg-emerald-50 text-emerald-700" : "bg-slate-100 text-slate-500"
+            }">
+              ${u.active ? "Aktif (Rotator ON)" : "Nonaktif"}
+            </span>
+          </td>
+          <td class="py-3 px-3 font-bold text-slate-800">${leadCount} Leads</td>
+          <td class="py-3 px-3 text-right space-x-1">
+            <button type="button" data-edit-cs="${u.id}" class="p-1.5 rounded-lg border border-slate-200 text-slate-600 hover:bg-slate-100">
+              <i class="fa-regular fa-pen-to-square text-xs"></i>
+            </button>
+            <button type="button" data-del-cs="${u.id}" class="p-1.5 rounded-lg border border-slate-200 text-rose-600 hover:bg-rose-50">
+              <i class="fa-regular fa-trash-can text-xs"></i>
+            </button>
+          </td>
+        </tr>
+      `;
+    })
+    .join("");
+
+  tbody.querySelectorAll("[data-edit-cs]").forEach((btn) => {
+    btn.addEventListener("click", () => {
+      const u = stateUsers.find((x) => x.id === btn.getAttribute("data-edit-cs"));
+      if (!u) return;
+      document.getElementById("team-form-title").textContent = "Edit Akun CS";
+      document.getElementById("cs-edit-id").value = u.id;
+      document.getElementById("cs-input-name").value = u.name;
+      document.getElementById("cs-input-username").value = u.username;
+      document.getElementById("cs-input-password").value = u.password;
+      document.getElementById("cs-input-phone").value = u.phone || "";
+      document.getElementById("cs-input-active").checked = Boolean(u.active);
+      document.getElementById("btn-cancel-cs-edit").classList.remove("hidden");
+    });
+  });
+
+  tbody.querySelectorAll("[data-del-cs]").forEach((btn) => {
+    btn.addEventListener("click", async () => {
+      const id = btn.getAttribute("data-del-cs");
+      if (IS_PREVIEW) {
+        stateUsers = stateUsers.filter((x) => x.id !== id);
+        renderAllViews();
+      } else {
+        await deleteDoc(doc(db, "crm_users", id));
+      }
+      showToast("Akun CS dihapus");
+    });
+  });
+}
+
+function renderSettingsAndLogsView() {
+  // Status Indikator Token Fonnte di Topbar & Sidebar
+  const hasToken = Boolean((stateSettings.fonnteToken || "").trim());
+  const dot = document.getElementById("fonnte-status-dot");
+  const pill = document.getElementById("topbar-fonnte-pill");
+
+  if (dot) {
+    dot.className = `w-2.5 h-2.5 rounded-full ${hasToken ? "bg-emerald-500" : "bg-amber-400"}`;
+  }
+  if (pill) {
+    pill.innerHTML = hasToken
+      ? `<span class="w-2 h-2 rounded-full bg-emerald-500"></span><span class="text-emerald-800">Fonnte Ready</span>`
+      : `<span class="w-2 h-2 rounded-full bg-amber-500"></span><span>Fonnte: Belum Diatur</span>`;
+  }
+
+  const tokenInput = document.getElementById("setting-fonnte-token");
+  if (tokenInput && document.activeElement !== tokenInput) {
+    tokenInput.value = stateSettings.fonnteToken || "";
+  }
+  const autoWelcomeCheck = document.getElementById("setting-auto-welcome");
+  if (autoWelcomeCheck) {
+    autoWelcomeCheck.checked = Boolean(stateSettings.autoWelcome);
+  }
+
+  // Tabel Log Riwayat
+  const logsTbody = document.getElementById("logs-table-body");
+  if (!logsTbody) return;
+
+  if (stateLogs.length === 0) {
+    logsTbody.innerHTML = `<tr><td colspan="5" class="py-8 text-center text-xs text-slate-400">Belum ada riwayat pengiriman pesan Fonnte.</td></tr>`;
+    return;
+  }
+
+  logsTbody.innerHTML = stateLogs
+    .slice(0, 60)
+    .map((lg) => {
+      const isOk = String(lg.statusApi || "").startsWith("Berhasil");
+      return `
+        <tr>
+          <td class="py-2.5 px-3 text-slate-500 whitespace-nowrap">${formatDateTime(lg.timestamp)}</td>
+          <td class="py-2.5 px-3">
+            <p class="font-bold text-slate-800">${escapeHtml(lg.leadName)}</p>
+            <p class="font-mono text-[11px] text-slate-500">+${escapeHtml(lg.targetWa)}</p>
+          </td>
+          <td class="py-2.5 px-3 max-w-xs">
+            <p class="truncate text-slate-600" title="${escapeHtml(lg.messageSent)}">${escapeHtml(lg.messageSent)}</p>
+          </td>
+          <td class="py-2.5 px-3">
+            <span class="px-2 py-0.5 rounded-full text-[10px] font-bold ${
+              isOk ? "bg-emerald-50 text-emerald-700" : "bg-rose-50 text-rose-700"
+            }">${escapeHtml(lg.statusApi)}</span>
+          </td>
+          <td class="py-2.5 px-3 font-semibold text-slate-600">${escapeHtml(lg.sentBy)}</td>
+        </tr>
+      `;
+    })
+    .join("");
+}
+
+function renderAllViews() {
+  if (!currentUser) return;
+  renderDashboardView();
+  renderLeadsView();
+  renderBroadcastAndTemplatesView();
+  renderTeamView();
+  renderSettingsAndLogsView();
+}
+
+// ENGINE AUTOMASI REKAP DATABASE (SMART BULK PARSER WA / CSV)
+function getNextRotatorCsUsername() {
+  const activeCs = stateUsers.filter((u) => u.active);
+  if (activeCs.length === 0) return currentUser?.username || "admin";
+  const picked = activeCs[rotatorIndex % activeCs.length];
+  rotatorIndex++;
+  return picked.username;
+}
+
+function parseRawTextToLeads(rawText) {
+  const lines = String(rawText || "")
+    .split(/\r?\n/)
+    .map((l) => l.trim())
+    .filter((l) => l.length > 3);
+
+  const assignMode = document.getElementById("parser-assign-mode")?.value || "ROTATOR";
+  const defaultSource = document.getElementById("parser-default-source")?.value || "WhatsApp Masuk";
+  const defaultStatus = document.getElementById("parser-default-status")?.value || "Baru";
+
+  const results = [];
+  const phoneRegex = /(\+62|62|08)[0-9\-\s]{7,15}/;
+
+  lines.forEach((line) => {
+    const match = line.match(phoneRegex);
+    if (!match) return;
+
+    const rawPhone = match[0];
+    const normalizedWa = normalizeWaNumber(rawPhone);
+    if (normalizedWa.length < 9) return;
+
+    // Pisahkan bagian selain nomor telepon untuk mengekstrak Nama & Catatan
+    const withoutPhone = line.replace(rawPhone, "|").split("|").map((s) => s.replace(/^[\s,\-;:|]+|[\s,\-;:|]+$/g, "").trim());
+    let namePart = withoutPhone[0] || "Pelanggan WA";
+    let notePart = withoutPhone.slice(1).join(" - ") || "Rekap otomatis CRM";
+
+    if (!withoutPhone[0] && withoutPhone[1]) {
+      const words = withoutPhone[1].split(" ");
+      namePart = words.slice(0, 2).join(" ");
+      notePart = words.slice(2).join(" ") || "Rekap otomatis CRM";
+    }
+
+    const assignedTo = assignMode === "ROTATOR" ? getNextRotatorCsUsername() : assignMode;
+
+    results.push({
+      name: namePart.slice(0, 60),
+      whatsapp: normalizedWa,
+      source: defaultSource,
+      status: defaultStatus,
+      assignedTo,
+      notes: notePart
+    });
+  });
+
+  return results;
+}
+
+// MODAL HELPERS & FORM HANDLERS
+function openModal(id) {
+  document.getElementById(id)?.classList.remove("hidden");
+}
+function closeModal(id) {
+  document.getElementById(id)?.classList.add("hidden");
+}
+
+function populateCsAssignSelects() {
+  const leadAssign = document.getElementById("lead-input-assigned");
+  const parserAssign = document.getElementById("parser-assign-mode");
+
+  const csOptions = stateUsers
+    .map((u) => `<option value="${escapeHtml(u.username)}">${escapeHtml(u.name)} (@${escapeHtml(u.username)})</option>`)
+    .join("");
+
+  if (leadAssign) {
+    leadAssign.innerHTML = `<option value="admin">Admin Utama</option>` + csOptions;
+    if (currentUser?.role === "cs") leadAssign.value = currentUser.username;
+  }
+  if (parserAssign) {
+    parserAssign.innerHTML =
+      `<option value="ROTATOR">Auto-Rotator (Bagi Rata CS Aktif)</option>` +
+      `<option value="admin">Semua ke Admin</option>` +
+      csOptions;
+  }
+}
+
+function openLeadModal(editId = "") {
+  populateCsAssignSelects();
+  const titleEl = document.getElementById("modal-lead-title");
+  if (!editId) {
+    titleEl.textContent = "Tambah Data Lead Baru";
+    document.getElementById("lead-input-id").value = "";
+    document.getElementById("lead-input-name").value = "";
+    document.getElementById("lead-input-wa").value = "";
+    document.getElementById("lead-input-source").value = "WhatsApp Masuk";
+    document.getElementById("lead-input-status").value = "Baru";
+    document.getElementById("lead-input-notes").value = "";
+  } else {
+    const item = stateLeads.find((l) => l.id === editId);
+    if (!item) return;
+    titleEl.textContent = "Edit Data Pelanggan";
+    document.getElementById("lead-input-id").value = item.id;
+    document.getElementById("lead-input-name").value = item.name;
+    document.getElementById("lead-input-wa").value = item.whatsapp;
+    document.getElementById("lead-input-source").value = item.source || "WhatsApp Masuk";
+    document.getElementById("lead-input-status").value = item.status || "Baru";
+    document.getElementById("lead-input-assigned").value = item.assignedTo || "admin";
+    document.getElementById("lead-input-notes").value = item.notes || "";
+  }
+  openModal("modal-lead-form");
+}
+
+function openDirectFonnteModal(leadId) {
+  const lead = stateLeads.find((l) => l.id === leadId);
+  if (!lead) return;
+  renderBroadcastAndTemplatesView();
+  document.getElementById("send-wa-lead-id").value = lead.id;
+  document.getElementById("send-wa-target-label").textContent = `${lead.name} (+${lead.whatsapp})`;
+  document.getElementById("send-wa-next-status").value = "KEEP";
+
+  const defaultTpl = stateTemplates[0];
+  document.getElementById("send-wa-message-text").value = defaultTpl
+    ? interpolateTemplate(defaultTpl.message, lead)
+    : `Halo Kak ${lead.name}, terima kasih telah menghubungi kami.`;
+
+  openModal("modal-send-fonnte");
+}
+
+function openTemplateModal(editId = "") {
+  if (!editId) {
+    document.getElementById("modal-tpl-title").textContent = "Buat Template Pesan Baru";
+    document.getElementById("tpl-input-id").value = "";
+    document.getElementById("tpl-input-title").value = "";
+    document.getElementById("tpl-input-category").value = "Sapaan Awal";
+    document.getElementById("tpl-input-message").value = "";
+  } else {
+    const t = stateTemplates.find((x) => x.id === editId);
+    if (!t) return;
+    document.getElementById("modal-tpl-title").textContent = "Edit Template Pesan";
+    document.getElementById("tpl-input-id").value = t.id;
+    document.getElementById("tpl-input-title").value = t.title;
+    document.getElementById("tpl-input-category").value = t.category;
+    document.getElementById("tpl-input-message").value = t.message;
+  }
+  openModal("modal-template-form");
+}
+
+// EKSPOR REKAP DATABASE KE CSV
+function exportLeadsToCsv() {
+  const leads = getAccessibleLeads();
+  if (leads.length === 0) {
+    showToast("Belum ada data untuk diekspor", "info");
+    return;
+  }
+  const headers = ["Nama Pelanggan", "No WhatsApp", "Sumber", "Status Pipeline", "Agen CS", "Catatan", "Terakhir FollowUp"];
+  const rows = leads.map((l) => [
+    `"${String(l.name || "").replace(/"/g, '""')}"`,
+    `"${l.whatsapp || ""}"`,
+    `"${l.source || ""}"`,
+    `"${l.status || ""}"`,
+    `"${l.assignedTo || ""}"`,
+    `"${String(l.notes || "").replace(/"/g, '""')}"`,
+    `"${formatDateTime(l.lastFollowUp)}"`
+  ]);
+  const csvContent = "data:text/csv;charset=utf-8," + [headers.join(","), ...rows.map((r) => r.join(","))].join("\n");
+  const encodedUri = encodeURI(csvContent);
+  const link = document.createElement("a");
+  link.setAttribute("href", encodedUri);
+  link.setAttribute("download", `Rekap_CRM_Fonnte_${new Date().toISOString().slice(0, 10)}.csv`);
+  document.body.appendChild(link);
+  link.click();
+  link.remove();
+  showToast("Berhasil mengunduh file Rekap CSV");
+}
+
+// PROSES LOGIN HYBRID (ADMIN FIREBASE AUTH & CS FIRESTORE)
+function enterApplicationSession(userObj) {
+  currentUser = userObj;
+  document.getElementById("auth-screen").classList.add("hidden");
+  document.getElementById("app-shell").classList.remove("hidden");
+
+  document.getElementById("sidebar-role-badge").textContent =
+    currentUser.role === "admin" ? "ADMIN / MANAGER" : "TIM CS / SALES";
+  document.getElementById("sidebar-user-name").textContent = currentUser.name;
+  document.getElementById("sidebar-user-sub").textContent =
+    currentUser.role === "admin" ? currentUser.email : `@${currentUser.username}`;
+
+  if (!IS_PREVIEW) {
+    startProductionListeners();
+  }
+
+  switchMenu("dashboard");
+}
+
+async function handleLogout() {
+  detachFirestoreListeners();
+  if (!IS_PREVIEW && auth && auth.currentUser) {
+    await signOut(auth).catch(() => {});
+  }
+  currentUser = null;
+  document.getElementById("app-shell").classList.add("hidden");
+  document.getElementById("auth-screen").classList.remove("hidden");
+  showToast("Anda telah keluar dari sesi aplikasi", "info");
+}
+
+// INISIALISASI DOM & SELURUH EVENT LISTENER
+window.addEventListener("DOMContentLoaded", () => {
+  // Saklar UI Mode Preview
+  if (IS_PREVIEW) {
+    document.getElementById("preview-mode-banner")?.classList.remove("hidden");
+    document.getElementById("preview-login-helper")?.classList.remove("hidden");
+    initPreviewMemoryData();
+  } else {
+    try {
+      app = initializeApp(firebaseConfig);
+      auth = getAuth(app);
+      db = getFirestore(app);
+
+      onAuthStateChanged(auth, (fbUser) => {
+        if (fbUser) {
+          enterApplicationSession({
+            role: "admin",
+            name: fbUser.displayName || "Administrator",
+            email: fbUser.email,
+            username: "admin"
+          });
+        }
+      });
+    } catch (err) {
+      showToast("Periksa konfigurasi firebaseConfig Anda: " + err.message, "error");
+    }
+  }
+
+  // Tab Switch Login (Admin vs CS)
+  const tabAdmin = document.getElementById("tab-login-admin");
+  const tabCs = document.getElementById("tab-login-cs");
+  const formAdmin = document.getElementById("form-login-admin");
+  const formCs = document.getElementById("form-login-cs");
+
+  tabAdmin.addEventListener("click", () => {
+    tabAdmin.className = "py-2.5 px-3 rounded-lg text-xs font-bold transition-all bg-white text-slate-900 shadow-sm flex items-center justify-center gap-2";
+    tabCs.className = "py-2.5 px-3 rounded-lg text-xs font-bold transition-all text-slate-500 hover:text-slate-800 flex items-center justify-center gap-2";
+    formAdmin.classList.remove("hidden");
+    formCs.classList.add("hidden");
+  });
+
+  tabCs.addEventListener("click", () => {
+    tabCs.className = "py-2.5 px-3 rounded-lg text-xs font-bold transition-all bg-white text-slate-900 shadow-sm flex items-center justify-center gap-2";
+    tabAdmin.className = "py-2.5 px-3 rounded-lg text-xs font-bold transition-all text-slate-500 hover:text-slate-800 flex items-center justify-center gap-2";
+    formCs.classList.remove("hidden");
+    formAdmin.classList.add("hidden");
+  });
+
+  // Tombol Quick Demo Login (Hanya saat IS_PREVIEW === true)
+  if (IS_PREVIEW) {
+    document.getElementById("btn-quick-admin")?.addEventListener("click", () => {
+      document.getElementById("admin-email").value = "admin@crm.com";
+      document.getElementById("admin-password").value = "admin123";
+      formAdmin.requestSubmit();
+    });
+    document.getElementById("btn-quick-cs")?.addEventListener("click", () => {
+      tabCs.click();
+      document.getElementById("cs-username").value = "cs_nadia";
+      document.getElementById("cs-password").value = "123456";
+      formCs.requestSubmit();
+    });
+  }
+
+  // Submit Login Admin
+  formAdmin.addEventListener("submit", async (e) => {
+    e.preventDefault();
+    const email = document.getElementById("admin-email").value.trim();
+    const pass = document.getElementById("admin-password").value;
+
+    if (IS_PREVIEW) {
+      if (email === "admin@crm.com" && pass === "admin123") {
+        enterApplicationSession({ role: "admin", name: "Admin Manager", email, username: "admin" });
+        showToast("Berhasil masuk sebagai Admin (Mode Preview)");
+      } else {
+        showToast("Kredensial demo Admin: admin@crm.com / admin123", "error");
+      }
+      return;
+    }
+
+    try {
+      await signInWithEmailAndPassword(auth, email, pass);
+      showToast("Login Admin berhasil!");
+    } catch (err) {
+      showToast("Autentikasi Admin gagal: Periksa email & password Firebase Auth", "error");
+    }
+  });
+
+  // Submit Login CS (Validasi Firestore)
+  formCs.addEventListener("submit", async (e) => {
+    e.preventDefault();
+    const uname = document.getElementById("cs-username").value.trim();
+    const pass = document.getElementById("cs-password").value;
+
+    if (IS_PREVIEW) {
+      const found = stateUsers.find((u) => u.username === uname && u.password === pass);
+      if (!found) {
+        showToast("Username atau password CS tidak cocok", "error");
+        return;
+      }
+      if (!found.active) {
+        showToast("Akun CS sedang dinonaktifkan oleh Admin", "error");
+        return;
+      }
+      enterApplicationSession({ role: "cs", name: found.name, username: found.username, email: "" });
+      showToast(`Selamat bertugas, ${found.name}!`);
+      return;
+    }
+
+    try {
+      const q = query(collection(db, "crm_users"), where("username", "==", uname), where("password", "==", pass));
+      const snap = await getDocs(q);
+      if (snap.empty) {
+        showToast("Username atau password CS tidak ditemukan di database", "error");
+        return;
+      }
+      const userData = snap.docs[0].data();
+      if (userData.active === false) {
+        showToast("Akun CS Anda sedang dinonaktifkan oleh Admin", "error");
+        return;
+      }
+      enterApplicationSession({
+        role: "cs",
+        name: userData.name,
+        username: userData.username,
+        email: ""
+      });
+      showToast(`Selamat bertugas, ${userData.name}!`);
+    } catch (err) {
+      showToast("Gagal memvalidasi akun CS: " + err.message, "error");
+    }
+  });
+
+  // Logout
+  document.getElementById("btn-logout-desktop")?.addEventListener("click", handleLogout);
+  document.getElementById("btn-logout-mobile")?.addEventListener("click", handleLogout);
+
+  // Close Modals
+  document.querySelectorAll("[data-close-modal]").forEach((btn) => {
+    btn.addEventListener("click", () => closeModal(btn.getAttribute("data-close-modal")));
+  });
+
+  // Filter Leads Listeners
+  ["filter-search-leads", "filter-status-leads", "filter-source-leads", "filter-cs-leads"].forEach((id) => {
+    document.getElementById(id)?.addEventListener("input", renderLeadsView);
+    document.getElementById(id)?.addEventListener("change", renderLeadsView);
+  });
+
+  // Tombol Buka Modal Lead & Parser
+  document.getElementById("btn-add-single-lead")?.addEventListener("click", () => openLeadModal(""));
+  const openParserFn = () => {
+    populateCsAssignSelects();
+    parsedPreviewBuffer = [];
+    document.getElementById("parser-raw-input").value = "";
+    document.getElementById("parser-preview-box").classList.add("hidden");
+    document.getElementById("parser-detected-summary").textContent = "0 baris terdeteksi";
+    openModal("modal-smart-parser");
+  };
+  document.getElementById("btn-open-smart-parser")?.addEventListener("click", openParserFn);
+  document.getElementById("btn-open-parser-from-leads")?.addEventListener("click", openParserFn);
+
+  // Contoh Format Smart Parser
+  document.getElementById("btn-fill-sample-parse")?.addEventListener("click", () => {
+    document.getElementById("parser-raw-input").value =
+      "Andi Pratama - 081234567891 - Tanya harga paket bisnis\n" +
+      "Dewi Lestari, +62 857-2233-4455, Minta dikirim katalog PDF\n" +
+      "081399887766 Hendra Wijaya (Siap jadwal meeting besok)";
+    document.getElementById("btn-run-extract-preview").click();
+  });
+
+  // Ekstrak Preview Smart Parser
+  document.getElementById("btn-run-extract-preview")?.addEventListener("click", () => {
+    const raw = document.getElementById("parser-raw-input").value;
+    parsedPreviewBuffer = parseRawTextToLeads(raw);
+    document.getElementById("parser-detected-summary").textContent = `${parsedPreviewBuffer.length} prospek valid terdeteksi`;
+
+    const box = document.getElementById("parser-preview-box");
+    const tbody = document.getElementById("parser-preview-tbody");
+    if (parsedPreviewBuffer.length === 0) {
+      box.classList.add("hidden");
+      showToast("Tidak ditemukan nomor WhatsApp valid pada teks", "info");
+      return;
+    }
+    box.classList.remove("hidden");
+    tbody.innerHTML = parsedPreviewBuffer
+      .map(
+        (item) => `
+        <tr>
+          <td class="py-2 px-3 font-bold text-slate-800">${escapeHtml(item.name)}</td>
+          <td class="py-2 px-3 font-mono text-emerald-700">+${escapeHtml(item.whatsapp)}</td>
+          <td class="py-2 px-3 text-slate-600">${escapeHtml(item.notes)}</td>
+          <td class="py-2 px-3 font-semibold text-slate-700">@${escapeHtml(item.assignedTo)}</td>
+        </tr>
+      `
+      )
+      .join("");
+  });
+
+  // Simpan Hasil Smart Parser ke Database CRM
+  document.getElementById("btn-save-parsed-leads")?.addEventListener("click", async () => {
+    if (parsedPreviewBuffer.length === 0) {
+      const raw = document.getElementById("parser-raw-input").value;
+      parsedPreviewBuffer = parseRawTextToLeads(raw);
+    }
+    if (parsedPreviewBuffer.length === 0) {
+      showToast("Masukkan teks berisi daftar nama & nomor WA terlebih dahulu", "error");
+      return;
+    }
+
+    try {
+      for (const item of parsedPreviewBuffer) {
+        const payload = {
+          ...item,
+          lastFollowUp: null,
+          createdAt: Date.now()
+        };
+        let createdLeadId = "lead-" + Date.now() + Math.random();
+        if (IS_PREVIEW) {
+          stateLeads.unshift({ id: createdLeadId, ...payload });
+        } else {
+          const docRef = await addDoc(collection(db, "crm_leads"), payload);
+          createdLeadId = docRef.id;
+        }
+
+        // Jika fitur Auto-Welcome Fonnte aktif, langsung kirim sapaan otomatis
+        if (stateSettings.autoWelcome && stateSettings.welcomeTemplateId) {
+          const tpl = stateTemplates.find((t) => t.id === stateSettings.welcomeTemplateId);
+          if (tpl) {
+            const msg = interpolateTemplate(tpl.message, payload);
+            await sendFonnteWhatsApp({
+              targetWa: payload.whatsapp,
+              message: msg,
+              leadId: createdLeadId,
+              leadName: payload.name
+            }).catch(() => {});
+          }
+        }
+      }
+      closeModal("modal-smart-parser");
+      renderAllViews();
+      switchMenu("leads");
+      showToast(`${parsedPreviewBuffer.length} data leads berhasil direkap ke CRM!`);
+    } catch (err) {
+      showToast("Gagal menyimpan rekap: " + err.message, "error");
+    }
+  });
+
+  // Simpan Lead Tunggal (Tambah / Edit)
+  document.getElementById("form-single-lead")?.addEventListener("submit", async (e) => {
+    e.preventDefault();
+    const editId = document.getElementById("lead-input-id").value;
+    const payload = {
+      name: document.getElementById("lead-input-name").value.trim(),
+      whatsapp: normalizeWaNumber(document.getElementById("lead-input-wa").value),
+      source: document.getElementById("lead-input-source").value,
+      status: document.getElementById("lead-input-status").value,
+      assignedTo: document.getElementById("lead-input-assigned").value || "admin",
+      notes: document.getElementById("lead-input-notes").value.trim()
+    };
+
+    if (payload.whatsapp.length < 9) {
+      showToast("Nomor WhatsApp tidak valid", "error");
+      return;
+    }
+
+    try {
+      if (!editId) {
+        payload.createdAt = Date.now();
+        payload.lastFollowUp = null;
+        if (IS_PREVIEW) {
+          stateLeads.unshift({ id: "lead-" + Date.now(), ...payload });
+        } else {
+          await addDoc(collection(db, "crm_leads"), payload);
+        }
+        showToast("Lead baru berhasil ditambahkan");
+      } else {
+        if (IS_PREVIEW) {
+          const idx = stateLeads.findIndex((l) => l.id === editId);
+          if (idx !== -1) stateLeads[idx] = { ...stateLeads[idx], ...payload };
+        } else {
+          await updateDoc(doc(db, "crm_leads", editId), payload);
+        }
+        showToast("Data pelanggan diperbarui");
+      }
+      closeModal("modal-lead-form");
+      renderAllViews();
+    } catch (err) {
+      showToast("Gagal menyimpan data: " + err.message, "error");
+    }
+  });
+
+  // Pilih Template di Modal Follow-Up 1-Klik
+  document.getElementById("send-wa-template-picker")?.addEventListener("change", (e) => {
+    const tpl = stateTemplates.find((t) => t.id === e.target.value);
+    const leadId = document.getElementById("send-wa-lead-id").value;
+    const lead = stateLeads.find((l) => l.id === leadId);
+    if (tpl && lead) {
+      document.getElementById("send-wa-message-text").value = interpolateTemplate(tpl.message, lead);
+    }
+  });
+
+  // Fallback Buka WA Web Langsung
+  document.getElementById("btn-fallback-wa-web")?.addEventListener("click", () => {
+    const leadId = document.getElementById("send-wa-lead-id").value;
+    const lead = stateLeads.find((l) => l.id === leadId);
+    const msg = document.getElementById("send-wa-message-text").value;
+    if (!lead) return;
+    window.open(`https://wa.me/${lead.whatsapp}?text=${encodeURIComponent(msg)}`, "_blank");
+  });
+
+  // Kirim Follow-Up via API Fonnte (Modal 1-Klik)
+  document.getElementById("form-send-direct-wa")?.addEventListener("submit", async (e) => {
+    e.preventDefault();
+    const leadId = document.getElementById("send-wa-lead-id").value;
+    const lead = stateLeads.find((l) => l.id === leadId);
+    const message = document.getElementById("send-wa-message-text").value.trim();
+    const nextStatus = document.getElementById("send-wa-next-status").value;
+    if (!lead || !message) return;
+
+    const btn = document.getElementById("btn-submit-direct-fonnte");
+    btn.disabled = true;
+    btn.innerHTML = `<i class="fa-solid fa-spinner fa-spin"></i> Mengirim...`;
+
+    try {
+      await sendFonnteWhatsApp({
+        targetWa: lead.whatsapp,
+        message,
+        leadId: lead.id,
+        leadName: lead.name
+      });
+
+      if (nextStatus !== "KEEP") {
+        if (IS_PREVIEW) {
+          lead.status = nextStatus;
+        } else {
+          await updateDoc(doc(db, "crm_leads", lead.id), { status: nextStatus });
+        }
+      }
+      closeModal("modal-send-fonnte");
+      renderAllViews();
+      showToast(`Pesan WhatsApp terkirim ke ${lead.name}`);
+    } catch (err) {
+      showToast(err.message, "error");
+    } finally {
+      btn.disabled = false;
+      btn.innerHTML = `<i class="fa-solid fa-paper-plane"></i> Kirim via API Fonnte`;
+    }
+  });
+
+  // Broadcast Filter & Template Picker
+  document.getElementById("bc-filter-status")?.addEventListener("change", renderBroadcastAndTemplatesView);
+  document.getElementById("bc-template-select")?.addEventListener("change", (e) => {
+    const tpl = stateTemplates.find((t) => t.id === e.target.value);
+    if (tpl) document.getElementById("bc-message-body").value = tpl.message;
+  });
+
+  // Eksekusi Broadcast Berjeda via Fonnte
+  document.getElementById("btn-start-broadcast")?.addEventListener("click", async () => {
+    const statusSeg = document.getElementById("bc-filter-status").value;
+    const rawMsg = document.getElementById("bc-message-body").value.trim();
+    const delayMs = Number(document.getElementById("bc-delay-sec").value) || 2500;
+
+    if (!rawMsg) {
+      showToast("Tulis isi pesan broadcast terlebih dahulu", "error");
+      return;
+    }
+
+    const baseLeads = getAccessibleLeads();
+    const targets = statusSeg === "ALL" ? baseLeads : baseLeads.filter((l) => l.status === statusSeg);
+    if (targets.length === 0) {
+      showToast("Tidak ada target leads pada segmen ini", "error");
+      return;
+    }
+
+    const progWrap = document.getElementById("bc-progress-wrap");
+    const progBar = document.getElementById("bc-progress-bar");
+    const progText = document.getElementById("bc-progress-text");
+    const btnStart = document.getElementById("btn-start-broadcast");
+
+    progWrap.classList.remove("hidden");
+    btnStart.disabled = true;
+
+    let sentCount = 0;
+    for (let i = 0; i < targets.length; i++) {
+      const lead = targets[i];
+      progText.textContent = `${i + 1} / ${targets.length}`;
+      progBar.style.width = `${Math.round(((i + 1) / targets.length) * 100)}%`;
+
+      const personalized = interpolateTemplate(rawMsg, lead);
+      try {
+        await sendFonnteWhatsApp({
+          targetWa: lead.whatsapp,
+          message: personalized,
+          leadId: lead.id,
+          leadName: lead.name
+        });
+        sentCount++;
+      } catch (err) {
+        // Lanjut ke nomor berikutnya meskipun ada 1 gagal
+      }
+
+      if (i < targets.length - 1) {
+        await new Promise((r) => setTimeout(r, IS_PREVIEW ? 400 : delayMs));
+      }
+    }
+
+    btnStart.disabled = false;
+    showToast(`Broadcast selesai: ${sentCount} dari ${targets.length} pesan berhasil dikirim!`);
+    setTimeout(() => progWrap.classList.add("hidden"), 2500);
+  });
+
+  // Modal Template Baru & Simpan Template
+  document.getElementById("btn-new-template")?.addEventListener("click", () => openTemplateModal(""));
+  document.getElementById("form-template")?.addEventListener("submit", async (e) => {
+    e.preventDefault();
+    const editId = document.getElementById("tpl-input-id").value;
+    const payload = {
+      title: document.getElementById("tpl-input-title").value.trim(),
+      category: document.getElementById("tpl-input-category").value,
+      message: document.getElementById("tpl-input-message").value.trim(),
+      updatedAt: Date.now()
+    };
+
+    try {
+      if (!editId) {
+        if (IS_PREVIEW) {
+          stateTemplates.push({ id: "tpl-" + Date.now(), ...payload });
+        } else {
+          await addDoc(collection(db, "crm_templates"), payload);
+        }
+        showToast("Template pesan ditambahkan");
+      } else {
+        if (IS_PREVIEW) {
+          const idx = stateTemplates.findIndex((t) => t.id === editId);
+          if (idx !== -1) stateTemplates[idx] = { ...stateTemplates[idx], ...payload };
+        } else {
+          await updateDoc(doc(db, "crm_templates", editId), payload);
+        }
+        showToast("Template pesan diperbarui");
+      }
+      closeModal("modal-template-form");
+      renderAllViews();
+    } catch (err) {
+      showToast("Gagal menyimpan template: " + err.message, "error");
+    }
+  });
+
+  // Manajemen Tim CS (Tambah / Edit)
+  document.getElementById("btn-cancel-cs-edit")?.addEventListener("click", () => {
+    document.getElementById("team-form-title").textContent = "Tambah Akun CS / Sales";
+    document.getElementById("cs-edit-id").value = "";
+    document.getElementById("form-manage-cs").reset();
+    document.getElementById("btn-cancel-cs-edit").classList.add("hidden");
+  });
+
+  document.getElementById("form-manage-cs")?.addEventListener("submit", async (e) => {
+    e.preventDefault();
+    const editId = document.getElementById("cs-edit-id").value;
+    const payload = {
+      name: document.getElementById("cs-input-name").value.trim(),
+      username: document.getElementById("cs-input-username").value.trim().toLowerCase().replace(/\s+/g, "_"),
+      password: document.getElementById("cs-input-password").value.trim(),
+      phone: normalizeWaNumber(document.getElementById("cs-input-phone").value),
+      role: "cs",
+      active: document.getElementById("cs-input-active").checked
+    };
+
+    try {
+      if (!editId) {
+        payload.createdAt = Date.now();
+        if (IS_PREVIEW) {
+          stateUsers.push({ id: "cs-" + Date.now(), ...payload });
+        } else {
+          await addDoc(collection(db, "crm_users"), payload);
+        }
+        showToast(`Akun CS @${payload.username} berhasil dibuat`);
+      } else {
+        if (IS_PREVIEW) {
+          const idx = stateUsers.findIndex((u) => u.id === editId);
+          if (idx !== -1) stateUsers[idx] = { ...stateUsers[idx], ...payload };
+        } else {
+          await updateDoc(doc(db, "crm_users", editId), payload);
+        }
+        showToast(`Akun CS @${payload.username} diperbarui`);
+      }
+      document.getElementById("btn-cancel-cs-edit").click();
+      renderAllViews();
+    } catch (err) {
+      showToast("Gagal menyimpan akun CS: " + err.message, "error");
+    }
+  });
+
+  // Pengaturan Token Fonnte
+  document.getElementById("btn-toggle-token-vis")?.addEventListener("click", () => {
+    const inp = document.getElementById("setting-fonnte-token");
+    inp.type = inp.type === "password" ? "text" : "password";
+  });
+
+  document.getElementById("form-fonnte-settings")?.addEventListener("submit", async (e) => {
+    e.preventDefault();
+    const payload = {
+      fonnteToken: document.getElementById("setting-fonnte-token").value.trim(),
+      autoWelcome: document.getElementById("setting-auto-welcome").checked,
+      welcomeTemplateId: document.getElementById("setting-welcome-template").value,
+      updatedAt: Date.now()
+    };
+
+    try {
+      if (IS_PREVIEW) {
+        stateSettings = { ...stateSettings, ...payload };
+      } else {
+        await setDoc(doc(db, "crm_settings", "fonnte"), payload, { merge: true });
+      }
+      renderAllViews();
+      showToast("Konfigurasi API Fonnte berhasil disimpan!");
+    } catch (err) {
+      showToast("Gagal menyimpan pengaturan Fonnte: " + err.message, "error");
+    }
+  });
+
+  // Cek Status Device Fonnte via Endpoint Resmi https://api.fonnte.com/device
+  document.getElementById("btn-check-fonnte-device")?.addEventListener("click", async () => {
+    const token = document.getElementById("setting-fonnte-token").value.trim();
+    const infoBox = document.getElementById("fonnte-device-info-box");
+    if (!token) {
+      showToast("Masukkan Token Fonnte terlebih dahulu", "error");
+      return;
+    }
+
+    infoBox.classList.remove("hidden");
+    infoBox.innerHTML = `<p class="font-semibold text-slate-700"><i class="fa-solid fa-spinner fa-spin mr-1"></i> Menghubungi server api.fonnte.com...</p>`;
+
+    if (IS_PREVIEW && token === "SIMULASI_TOKEN_FONNTE_PREVIEW") {
+      setTimeout(() => {
+        infoBox.innerHTML = `
+          <p class="font-bold text-emerald-900"><i class="fa-solid fa-circle-check text-emerald-600 mr-1"></i> Device Terhubung (Simulasi Preview)</p>
+          <p class="text-emerald-800">Nama Device: <b>CRM Gateway Utama</b> | Status: <b>connect</b> | Kuota Pesan: <b>9.840</b></p>
+        `;
+      }, 400);
+      return;
+    }
+
+    try {
+      const res = await fetch("https://api.fonnte.com/device", {
+        method: "POST",
+        headers: { Authorization: token }
+      });
+      const data = await res.json();
+      if (data && data.status === true) {
+        infoBox.innerHTML = `
+          <p class="font-bold text-emerald-900"><i class="fa-solid fa-circle-check text-emerald-600 mr-1"></i> Device Fonnte Aktif</p>
+          <p class="text-emerald-800">Nomor: <b>${escapeHtml(data.device || "-")}</b> | Status: <b>${escapeHtml(data.device_status || "-")}</b> | Kuota: <b>${escapeHtml(data.messages || "-")}</b></p>
+        `;
+        showToast("Koneksi API Fonnte terverifikasi!");
+      } else {
+        infoBox.innerHTML = `<p class="font-bold text-rose-700">Gagal memverifikasi token: ${escapeHtml(data?.reason || "Token tidak valid")}</p>`;
+      }
+    } catch (err) {
+      infoBox.innerHTML = `<p class="font-bold text-rose-700">Gagal menghubungi API Fonnte: ${escapeHtml(err.message)}</p>`;
+    }
+  });
+
+  // Tombol Ekspor CSV
+  document.getElementById("btn-export-csv-dash")?.addEventListener("click", exportLeadsToCsv);
+  document.getElementById("btn-export-csv-leads")?.addEventListener("click", exportLeadsToCsv);
+});
+</script>
+</body>
+</html>
